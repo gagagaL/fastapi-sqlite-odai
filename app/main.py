@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from .database.connection import get_db, init_db
 from .database.crud import NewsArticleCRUD, ExtractedWordCRUD, OgiriTopicCRUD, TrainingTopicCRUD
 from .config import get_settings
+from .scraping import YahooNewsScraper, NHKNewsScraper, TextProcessor, SimpleWordExtractor
+from .database.crud import NewsArticleCRUD, ExtractedWordCRUD
 import os
 
 # 設定読み込み
@@ -194,3 +196,198 @@ async def init_sample_data(db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+
+@app.post("/api/scraping/collect-news")
+async def collect_news(
+    source: str = "yahoo",  # yahoo or nhk
+    max_articles: int = 5,
+    db: Session = Depends(get_db)
+):
+    """ニュース記事を収集"""
+    
+    if max_articles > 20:
+        raise HTTPException(status_code=400, detail="一度に取得できる記事数は20件までです")
+    
+    try:
+        # スクレイパー選択
+        if source.lower() == "yahoo":
+            scraper = YahooNewsScraper()
+        elif source.lower() == "nhk":
+            scraper = NHKNewsScraper()
+        else:
+            raise HTTPException(status_code=400, detail="サポートされていないニュースソースです")
+        
+        # 記事収集
+        articles = scraper.scrape_articles(max_articles)
+        
+        if not articles:
+            return {"message": "記事が取得できませんでした", "count": 0}
+        
+        # データベースに保存
+        saved_count = 0
+        for article in articles:
+            try:
+                # 既存チェック（URLで重複回避）
+                existing = db.query(NewsArticle).filter_by(url=article.url).first()
+                if not existing:
+                    NewsArticleCRUD.create(
+                        db, 
+                        title=article.title,
+                        content=article.content,
+                        url=article.url,
+                        source=article.source
+                    )
+                    saved_count += 1
+            except Exception as e:
+                print(f"記事保存エラー: {e}")
+                continue
+        
+        return {
+            "message": f"{source}ニュースから{saved_count}件の新しい記事を収集しました",
+            "source": source,
+            "collected": len(articles),
+            "saved": saved_count
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ニュース収集エラー: {str(e)}")
+
+@app.post("/api/scraping/extract-words")
+async def extract_words_from_articles(
+    max_articles: int = 10,
+    db: Session = Depends(get_db)
+):
+    """記事から単語を抽出"""
+    
+    try:
+        # 最新の記事を取得
+        articles = NewsArticleCRUD.get_all(db, limit=max_articles)
+        
+        if not articles:
+            raise HTTPException(status_code=404, detail="記事が見つかりません")
+        
+        # テキスト処理と単語抽出
+        processor = TextProcessor()
+        extractor = SimpleWordExtractor()
+        
+        extracted_count = 0
+        all_words = []
+        
+        for article in articles:
+            # テキスト前処理
+            clean_title = processor.clean_text(article.title)
+            clean_content = processor.clean_text(article.content)
+            combined_text = f"{clean_title} {clean_content}"
+            
+            # 単語抽出
+            extracted = extractor.extract_words(combined_text)
+            
+            # データベースに保存
+            for category, words in extracted.items():
+                for word in words:
+                    if len(word) >= 2:  # 2文字以上の単語のみ
+                        ExtractedWordCRUD.create_or_increment(
+                            db,
+                            word=word,
+                            word_type=category,
+                            source_article_id=article.id
+                        )
+                        all_words.append(word)
+                        extracted_count += 1
+        
+        # 頻出単語統計
+        frequent_words = extractor.get_frequent_words([" ".join(all_words)])
+        
+        return {
+            "message": f"{len(articles)}件の記事から{extracted_count}個の単語を抽出しました",
+            "processed_articles": len(articles),
+            "extracted_words": extracted_count,
+            "top_words": dict(list(frequent_words.items())[:10])
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"単語抽出エラー: {str(e)}")
+
+@app.post("/api/scraping/full-pipeline")  
+async def run_full_scraping_pipeline(
+    source: str = "yahoo",
+    max_articles: int = 5,
+    db: Session = Depends(get_db)
+):
+    """完全なスクレイピングパイプライン（収集→単語抽出）"""
+    
+    try:
+        # Step 1: ニュース収集
+        collect_result = await collect_news(source, max_articles, db)
+        
+        if collect_result["saved"] == 0:
+            return {
+                "message": "新しい記事がありませんでした",
+                "news_collection": collect_result,
+                "word_extraction": {"extracted_words": 0}
+            }
+        
+        # Step 2: 単語抽出（新しい記事のみ）
+        extract_result = await extract_words_from_articles(collect_result["saved"], db)
+        
+        return {
+            "message": "スクレイピングパイプライン完了",
+            "news_collection": collect_result,
+            "word_extraction": extract_result
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"パイプラインエラー: {str(e)}")
+
+@app.get("/api/scraping/stats")
+async def get_scraping_stats(db: Session = Depends(get_db)):
+    """スクレイピング統計情報"""
+    
+    try:
+        # 基本統計
+        total_articles = NewsArticleCRUD.get_count(db)
+        total_words = db.query(ExtractedWord).count()
+        
+        # ソース別統計
+        source_stats = {}
+        sources = db.query(NewsArticle.source, func.count(NewsArticle.id)).group_by(NewsArticle.source).all()
+        for source, count in sources:
+            source_stats[source] = count
+        
+        # 頻出単語トップ10
+        top_words = ExtractedWordCRUD.get_frequent_words(db, 10)
+        word_stats = [{"word": w.word, "frequency": w.frequency, "type": w.word_type} for w in top_words]
+        
+        # 最新記事
+        recent_articles = NewsArticleCRUD.get_all(db, limit=5)
+        recent_stats = [
+            {
+                "title": article.title[:50] + "..." if len(article.title) > 50 else article.title,
+                "source": article.source,
+                "created_at": article.created_at.strftime("%Y-%m-%d %H:%M")
+            } 
+            for article in recent_articles
+        ]
+        
+        return {
+            "total_articles": total_articles,
+            "total_words": total_words,
+            "source_distribution": source_stats,
+            "top_words": word_stats,
+            "recent_articles": recent_stats
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"統計取得エラー: {str(e)}")
+
+@app.get("/admin")
+async def admin_page(request: Request):
+    """管理画面"""
+    return templates.TemplateResponse(
+        "admin.html",
+        {"request": request, "title": "管理画面"}
+    )
