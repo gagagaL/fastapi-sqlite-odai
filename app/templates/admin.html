@@ -7,6 +7,66 @@
     <div class="col-12">
         <h2>🔧 システム管理画面</h2>
         
+        <!-- スクレイピング機能 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>🕷️ ニュース収集機能</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>収集設定</h5>
+                        <div class="mb-3">
+                            <label class="form-label">ニュースソース</label>
+                            <select id="newsSource" class="form-select">
+                                <option value="yahoo">Yahoo!ニュース</option>
+                                <option value="nhk">NHK</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">取得記事数</label>
+                            <input type="number" id="maxArticles" class="form-control" value="3" min="1" max="10">
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-primary" onclick="collectNews()">
+                                🕷️ ニュース収集開始
+                            </button>
+                            <button class="btn btn-success" onclick="extractWords()">
+                                🔤 単語抽出実行
+                            </button>
+                            <button class="btn btn-warning" onclick="runFullPipeline()">
+                                ⚡ 完全パイプライン実行
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>実行ログ</h5>
+                        <div id="logArea" class="border p-3" style="height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                            <small class="text-muted">ここに実行ログが表示されます...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計情報 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>📊 統計情報</h4>
+                <button class="btn btn-sm btn-outline-primary" onclick="loadStats()">🔄 更新</button>
+            </div>
+            <div class="card-body">
+                <div id="statsArea">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                        <p>統計情報を読み込み中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- 基本機能 -->
         <div class="card mb-4">
             <div class="card-header">
@@ -26,28 +86,11 @@
                 </div>
             </div>
         </div>
-        
-        <!-- ログエリア -->
-        <div class="card">
-            <div class="card-header">
-                <h4>📝 実行ログ</h4>
-            </div>
-            <div class="card-body">
-                <div id="logArea" class="border p-3" style="height: 200px; overflow-y: auto; background-color: #f8f9fa;">
-                    <small class="text-muted">管理画面を初期化しました</small>
-                </div>
-            </div>
-        </div>
-        
-        <!-- スクレイピング機能は後で追加予定 -->
-        <div class="alert alert-info mt-3">
-            <h5>🚧 開発予定機能</h5>
-            <p>スクレイピング機能は次のステップで実装予定です</p>
-        </div>
     </div>
 </div>
 
 <script>
+// ログ出力関数
 function addLog(message, type = 'info') {
     const logArea = document.getElementById('logArea');
     const timestamp = new Date().toLocaleTimeString();
@@ -58,6 +101,182 @@ function addLog(message, type = 'info') {
     logArea.scrollTop = logArea.scrollHeight;
 }
 
+// ニュース収集
+async function collectNews() {
+    const source = document.getElementById('newsSource').value;
+    const maxArticles = document.getElementById('maxArticles').value;
+    
+    addLog(`📰 ${source}から${maxArticles}件の記事収集を開始...`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('source', source);
+        formData.append('max_articles', maxArticles);
+        
+        const response = await fetch('/api/scraping/collect-news', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📊 収集: ${result.collected}件, 保存: ${result.saved}件`);
+            if (result.articles && result.articles.length > 0) {
+                addLog(`📝 取得記事例: "${result.articles[0].title}"`);
+            }
+            loadStats(); // 統計更新
+        } else {
+            addLog(`❌ エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 単語抽出
+async function extractWords() {
+    addLog('🔤 記事から単語抽出を開始...');
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('max_articles', '10');
+        
+        const response = await fetch('/api/scraping/extract-words', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📊 処理記事: ${result.processed_articles}件, 抽出単語: ${result.extracted_words}個`);
+            if (result.top_words && Object.keys(result.top_words).length > 0) {
+                const topWordsText = Object.entries(result.top_words).slice(0, 3)
+                    .map(([word, freq]) => `${word}(${freq})`).join(', ');
+                addLog(`🔝 頻出単語: ${topWordsText}`);
+            }
+            loadStats(); // 統計更新
+        } else {
+            addLog(`❌ エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 完全パイプライン実行
+async function runFullPipeline() {
+    const source = document.getElementById('newsSource').value;
+    const maxArticles = document.getElementById('maxArticles').value;
+    
+    addLog(`⚡ 完全パイプライン実行開始 (${source}, ${maxArticles}件)`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('source', source);
+        formData.append('max_articles', maxArticles);
+        
+        const response = await fetch('/api/scraping/full-pipeline', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ パイプライン完了: ${result.message}`, 'success');
+            addLog(`📰 収集: ${result.news_collection.saved}件の新記事`);
+            addLog(`🔤 抽出: ${result.word_extraction.extracted_words}個の単語`);
+            loadStats(); // 統計更新
+        } else {
+            addLog(`❌ エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 統計情報読み込み
+async function loadStats() {
+    try {
+        const response = await fetch('/api/scraping/stats');
+        const stats = await response.json();
+        
+        if (response.ok) {
+            const statsHTML = `
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-primary">${stats.total_articles}</h3>
+                            <small>記事数</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-success">${stats.total_words}</h3>
+                            <small>抽出単語数</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h5>ソース別統計</h5>
+                        ${Object.entries(stats.source_distribution).map(([source, count]) => 
+                            `<span class="badge bg-info me-2">${source}: ${count}件</span>`
+                        ).join('')}
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>頻出単語 TOP10</h5>
+                        ${stats.top_words.length > 0 ? 
+                            `<div class="list-group list-group-flush">
+                                ${stats.top_words.slice(0, 10).map((word, index) => 
+                                    `<div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>${word.word} <small class="text-muted">(${word.type})</small></span>
+                                        <span class="badge bg-primary">${word.frequency}</span>
+                                    </div>`
+                                ).join('')}
+                            </div>` :
+                            '<p class="text-muted">まだ単語が抽出されていません</p>'
+                        }
+                    </div>
+                    <div class="col-md-6">
+                        <h5>最新記事</h5>
+                        ${stats.recent_articles.length > 0 ?
+                            `<div class="list-group list-group-flush">
+                                ${stats.recent_articles.map(article => 
+                                    `<div class="list-group-item">
+                                        <div class="fw-bold">${article.title}</div>
+                                        <small class="text-muted">${article.source} - ${article.created_at}</small>
+                                    </div>`
+                                ).join('')}
+                            </div>` :
+                            '<p class="text-muted">まだ記事がありません</p>'
+                        }
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('statsArea').innerHTML = statsHTML;
+        } else {
+            document.getElementById('statsArea').innerHTML = 
+                '<div class="alert alert-warning">統計情報の読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('statsArea').innerHTML = 
+            '<div class="alert alert-danger">統計情報の読み込みでエラーが発生しました</div>';
+    }
+}
+
+// サンプルデータ投入
 async function initSampleData() {
     addLog('🎲 サンプルデータを投入中...');
     
@@ -67,6 +286,7 @@ async function initSampleData() {
         
         if (response.ok) {
             addLog(`✅ ${result.message}`, 'success');
+            loadStats();
         } else {
             addLog(`❌ エラー: ${result.detail || result.message}`, 'error');
         }
@@ -75,6 +295,7 @@ async function initSampleData() {
     }
 }
 
+// 統計確認
 async function checkStats() {
     addLog('📊 統計情報を確認中...');
     
@@ -87,14 +308,16 @@ async function checkStats() {
             addLog(`🔤 単語数: ${stats.extracted_words}個`, 'success');
             addLog(`🎯 お題数: ${stats.ogiri_topics}個`, 'success');
         } else {
-            addLog(`⚠️ 統計取得エラー: ${stats.error}`, 'error');
+            addLog(`⚠️ 統計取得エラー: ${stats.error || '不明なエラー'}`, 'error');
         }
     } catch (error) {
         addLog(`❌ 統計確認エラー: ${error.message}`, 'error');
     }
 }
 
+// ページ読み込み時に統計情報を取得
 document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
     addLog('🚀 管理画面を初期化しました');
 });
 </script>

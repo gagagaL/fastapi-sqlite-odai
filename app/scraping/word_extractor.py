@@ -1,28 +1,24 @@
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from collections import defaultdict
 
 class SimpleWordExtractor:
-    """シンプルな単語抽出（MeCab不要）"""
+    """シンプルな単語抽出クラス"""
     
     def __init__(self):
-        # よくある固有名詞パターン
-        self.proper_noun_patterns = [
-            r'[A-Z][a-z]+',  # 英語の固有名詞
-            r'[ァ-ヴ]+',      # カタカナ
-            r'株式会社\w+',   # 会社名
-            r'\w+会社',       # 会社名
-            r'\w+大学',       # 大学名
-            r'\w+病院',       # 病院名
+        # 基本的な単語パターン
+        self.noun_patterns = [
+            r'AI|人工知能|機械学習|ディープラーニング|IoT',
+            r'スマートフォン|タブレット|コンピュータ|システム|アプリ',
+            r'宇宙|火星|月面|衛星|ロケット',
+            r'経済|政治|教育|医療|環境|エネルギー',
+            r'技術|開発|研究|実験|分析|データ',
+            r'企業|会社|組織|政府|自治体'
         ]
         
-        # 一般的な名詞パターン
-        self.noun_patterns = [
-            r'技術|システム|サービス|アプリ|プラン|機能|方法',
-            r'問題|課題|解決|改善|対策|方針|政策|計画',
-            r'開発|研究|実験|調査|分析|検証|評価',
-            r'市場|業界|企業|組織|団体|機関',
-            r'データ|情報|ニュース|記事|報告|発表'
+        self.proper_noun_patterns = [
+            r'[A-Z][a-zA-Z]+',  # 英語固有名詞
+            r'[ァ-ヴー]{2,}',    # カタカナ語
         ]
     
     def extract_words(self, text: str) -> Dict[str, List[str]]:
@@ -30,28 +26,41 @@ class SimpleWordExtractor:
         if not text:
             return {"proper_nouns": [], "common_nouns": [], "keywords": []}
         
-        # テキストクリーニング
-        clean_text = re.sub(r'[^\w\s]', ' ', text)
-        
         result = {
             "proper_nouns": [],
             "common_nouns": [],
             "keywords": []
         }
         
-        # 固有名詞抽出
+        # カタカナ語・英語（固有名詞として扱う）
         for pattern in self.proper_noun_patterns:
             matches = re.findall(pattern, text)
             result["proper_nouns"].extend(matches)
         
-        # 一般名詞抽出
+        # 一般名詞
         for pattern in self.noun_patterns:
             matches = re.findall(pattern, text)
             result["common_nouns"].extend(matches)
         
-        # キーワード抽出（長めの単語）
-        words = re.findall(r'\w{3,}', clean_text)
-        result["keywords"] = [w for w in words if len(w) >= 3]
+        # キーワード（漢字を含む2文字以上の単語）
+        keywords = re.findall(r'[一-龯ぁ-んァ-ヴー]{2,}', text)
+        # フィルタリング（助詞・助動詞などを除外）
+        filtered_keywords = []
+        exclude_patterns = [
+            r'^(こと|もの|ため|よう|など|について|により|において|として|という|である|です|ます|した|する|される|れる|られる|せる|させる)$',
+            r'^(は|が|を|に|へ|で|と|から|より|まで|の|や|か|も|こそ|さえ|でも|しか|ばかり|だけ|ほど|くらい|など)$'
+        ]
+        
+        for keyword in keywords:
+            exclude = False
+            for pattern in exclude_patterns:
+                if re.match(pattern, keyword):
+                    exclude = True
+                    break
+            if not exclude and len(keyword) >= 2:
+                filtered_keywords.append(keyword)
+        
+        result["keywords"] = filtered_keywords
         
         # 重複除去
         for key in result:
@@ -67,10 +76,9 @@ class SimpleWordExtractor:
             extracted = self.extract_words(text)
             for category in extracted:
                 for word in extracted[category]:
-                    if len(word) >= 2:  # 2文字以上
+                    if len(word) >= 2:
                         word_count[word] += 1
         
-        # 頻度でフィルタリング
         frequent_words = {
             word: count for word, count in word_count.items() 
             if count >= min_frequency
