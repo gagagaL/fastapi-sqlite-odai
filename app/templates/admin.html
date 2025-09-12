@@ -17,35 +17,68 @@
                     <div class="col-md-6">
                         <h5>収集設定</h5>
                         <div class="mb-3">
-                            <label class="form-label">ニュースソース</label>
-                            <select id="newsSource" class="form-select">
-                                <option value="yahoo">Yahoo!ニュース</option>
-                                <option value="nhk">NHK</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">取得記事数</label>
-                            <input type="number" id="maxArticles" class="form-control" value="3" min="1" max="10">
+                            <label class="form-label">記事数/サイト</label>
+                            <input type="number" id="articlesPerSite" class="form-control" value="2" min="1" max="5">
+                            <small class="text-muted">各サイトから取得する記事数</small>
                         </div>
                         <div class="d-grid gap-2">
-                            <button class="btn btn-primary" onclick="collectNews()">
-                                🕷️ ニュース収集開始
+                            <button class="btn btn-primary btn-lg" onclick="runFullPipelineAll()">
+                                🌐 全サイト収集＋単語抽出
                             </button>
-                            <button class="btn btn-success" onclick="extractWords()">
-                                🔤 単語抽出実行
+                            <button class="btn btn-outline-primary" onclick="collectAllNews()">
+                                📰 全サイト記事収集のみ
                             </button>
-                            <button class="btn btn-warning" onclick="runFullPipeline()">
-                                ⚡ 完全パイプライン実行
+                            <button class="btn btn-info" onclick="runEnhancedFullPipeline()">
+                                🚀 拡張版パイプライン(9サイト)
+                            </button>
+                            <button class="btn btn-outline-info" onclick="collectEnhancedNews()">
+                                📚 拡張版記事収集(9サイト)
+                            </button>
+                            <button class="btn btn-success" onclick="runFullPipelineMeCab()">
+                                🤖 MeCab完全パイプライン
                             </button>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <h5>実行ログ</h5>
-                        <div id="logArea" class="border p-3" style="height: 300px; overflow-y: auto; background-color: #f8f9fa;">
+                    
+                    <!-- システム状態確認ボタン群 -->
+                    <div class="col-md-6 mb-3">
+                        <h5>システム状態</h5>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-secondary" onclick="checkMeCabStatus()">
+                                🔍 MeCab状態確認
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="checkDatabaseStatus()">
+                                🗄️ DB状態確認
+                            </button>
+                        </div>
+                        <div id="logArea" class="border p-3 mt-3" style="height: 300px; overflow-y: auto; background-color: #f8f9fa;">
                             <small class="text-muted">ここに実行ログが表示されます...</small>
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- 単語管理 -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>🔤 抽出単語管理</h4>
+                <div>
+                    <input type="text" id="wordSearch" class="form-control d-inline" style="width: 200px;" placeholder="単語検索...">
+                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="searchWords()">検索</button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" onclick="loadWords()">🔄</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="wordsArea">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">読み込み中...</span>
+                        </div>
+                        <p>単語リストを読み込み中...</p>
+                    </div>
+                </div>
+                <nav id="wordsPagination" class="mt-3"></nav>
             </div>
         </div>
 
@@ -77,6 +110,9 @@
                     <button class="btn btn-success" onclick="initSampleData()">
                         🎲 サンプルデータ投入
                     </button>
+                    <button class="btn btn-warning" onclick="repairDatabase()">
+                        🔧 データベース修復
+                    </button>
                     <a href="/docs" class="btn btn-outline-primary" target="_blank">
                         📖 API仕様
                     </a>
@@ -90,6 +126,9 @@
 </div>
 
 <script>
+let currentPage = 1;
+const perPage = 20;
+
 // ログ出力関数
 function addLog(message, type = 'info') {
     const logArea = document.getElementById('logArea');
@@ -101,19 +140,17 @@ function addLog(message, type = 'info') {
     logArea.scrollTop = logArea.scrollHeight;
 }
 
-// ニュース収集
-async function collectNews() {
-    const source = document.getElementById('newsSource').value;
-    const maxArticles = document.getElementById('maxArticles').value;
+// 全サイト記事収集
+async function collectAllNews() {
+    const articlesPerSite = document.getElementById('articlesPerSite').value;
     
-    addLog(`📰 ${source}から${maxArticles}件の記事収集を開始...`);
+    addLog(`📰 全サイトから各${articlesPerSite}件の記事収集を開始...`);
     
     try {
         const formData = new URLSearchParams();
-        formData.append('source', source);
-        formData.append('max_articles', maxArticles);
+        formData.append('articles_per_site', articlesPerSite);
         
-        const response = await fetch('/api/scraping/collect-news', {
+        const response = await fetch('/api/scraping/collect-all-news', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: formData
@@ -124,10 +161,14 @@ async function collectNews() {
         if (response.ok) {
             addLog(`✅ ${result.message}`, 'success');
             addLog(`📊 収集: ${result.collected}件, 保存: ${result.saved}件`);
-            if (result.articles && result.articles.length > 0) {
-                addLog(`📝 取得記事例: "${result.articles[0].title}"`);
+            
+            if (result.sources) {
+                Object.entries(result.sources).forEach(([source, count]) => {
+                    addLog(`📰 ${source}: ${count}件`);
+                });
             }
-            loadStats(); // 統計更新
+            
+            loadStats();
         } else {
             addLog(`❌ エラー: ${result.detail}`, 'error');
         }
@@ -136,15 +177,17 @@ async function collectNews() {
     }
 }
 
-// 単語抽出
-async function extractWords() {
-    addLog('🔤 記事から単語抽出を開始...');
+// 拡張版（9サイト）記事収集
+async function collectEnhancedNews() {
+    const articlesPerSite = document.getElementById('articlesPerSite').value;
+    
+    addLog(`📰 9サイトから各${articlesPerSite}件の記事収集を開始...`);
     
     try {
         const formData = new URLSearchParams();
-        formData.append('max_articles', '10');
+        formData.append('articles_per_site', articlesPerSite);
         
-        const response = await fetch('/api/scraping/extract-words', {
+        const response = await fetch('/api/scraping/collect-all-news-enhanced', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: formData
@@ -154,13 +197,16 @@ async function extractWords() {
         
         if (response.ok) {
             addLog(`✅ ${result.message}`, 'success');
-            addLog(`📊 処理記事: ${result.processed_articles}件, 抽出単語: ${result.extracted_words}個`);
-            if (result.top_words && Object.keys(result.top_words).length > 0) {
-                const topWordsText = Object.entries(result.top_words).slice(0, 3)
-                    .map(([word, freq]) => `${word}(${freq})`).join(', ');
-                addLog(`🔝 頻出単語: ${topWordsText}`);
+            addLog(`📊 総収集: ${result.collected}件, 新規保存: ${result.saved}件`);
+            addLog(`🌐 対応サイト数: ${result.total_sites}サイト`);
+            
+            if (result.sources) {
+                Object.entries(result.sources).forEach(([source, count]) => {
+                    addLog(`📰 ${source}: ${count}件`);
+                });
             }
-            loadStats(); // 統計更新
+            
+            loadStats();
         } else {
             addLog(`❌ エラー: ${result.detail}`, 'error');
         }
@@ -169,19 +215,17 @@ async function extractWords() {
     }
 }
 
-// 完全パイプライン実行
-async function runFullPipeline() {
-    const source = document.getElementById('newsSource').value;
-    const maxArticles = document.getElementById('maxArticles').value;
+// 拡張版完全パイプライン
+async function runEnhancedFullPipeline() {
+    const articlesPerSite = document.getElementById('articlesPerSite').value;
     
-    addLog(`⚡ 完全パイプライン実行開始 (${source}, ${maxArticles}件)`);
+    addLog(`🌐 拡張版完全パイプライン実行開始 - 9サイト各${articlesPerSite}件`);
     
     try {
         const formData = new URLSearchParams();
-        formData.append('source', source);
-        formData.append('max_articles', maxArticles);
+        formData.append('articles_per_site', articlesPerSite);
         
-        const response = await fetch('/api/scraping/full-pipeline', {
+        const response = await fetch('/api/scraping/full-pipeline-enhanced', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: formData
@@ -190,10 +234,12 @@ async function runFullPipeline() {
         const result = await response.json();
         
         if (response.ok) {
-            addLog(`✅ パイプライン完了: ${result.message}`, 'success');
-            addLog(`📰 収集: ${result.news_collection.saved}件の新記事`);
-            addLog(`🔤 抽出: ${result.word_extraction.extracted_words}個の単語`);
-            loadStats(); // 統計更新
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📰 記事: ${result.news_collection.saved}件の新記事`);
+            addLog(`🔤 単語: ${result.word_extraction.extracted_words}個抽出`);
+            addLog(`🏆 パイプライン: ${result.pipeline_type}`);
+            loadStats();
+            loadWords();
         } else {
             addLog(`❌ エラー: ${result.detail}`, 'error');
         }
@@ -201,6 +247,332 @@ async function runFullPipeline() {
         addLog(`❌ 通信エラー: ${error.message}`, 'error');
     }
 }
+
+// データベース修復
+async function repairDatabase() {
+    addLog('🔧 データベース修復を開始...');
+    
+    try {
+        const response = await fetch('/api/admin/repair-database', {method: 'POST'});
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ ${result.message}`, 'success');
+            loadStats();
+            loadWords();
+        } else {
+            addLog(`❌ 修復エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// データベース状況確認
+async function checkDatabaseStatus() {
+    addLog('📊 データベース状況を確認中...');
+    
+    try {
+        const response = await fetch('/api/admin/database-status');
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`🏥 全体状況: ${result.overall_status}`, 
+                   result.overall_status === 'healthy' ? 'success' : 'error');
+            
+            if (result.database_status) {
+                Object.entries(result.database_status).forEach(([table, status]) => {
+                    if (status.exists) {
+                        addLog(`✅ ${table}: ${status.count}件`, 'success');
+                    } else {
+                        addLog(`❌ ${table}: テーブル不存在`, 'error');
+                    }
+                });
+            }
+        } else {
+            addLog(`❌ 状況確認エラー`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// MeCab完全パイプライン
+async function runFullPipelineMeCab() {
+    const articlesPerSite = document.getElementById('articlesPerSite').value;
+    
+    addLog(`🧠 MeCab完全パイプライン実行開始 - 各サイト${articlesPerSite}件`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('articles_per_site', articlesPerSite);
+        
+        const response = await fetch('/api/scraping/full-pipeline-mecab', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📰 記事: ${result.news_collection.saved}件の新記事`);
+            addLog(`🧠 名詞: ${result.word_extraction.extracted_words}個抽出`);
+            addLog(`📝 解析方法: ${result.word_extraction.extraction_method}`);
+            loadStats();
+            loadWords();
+        } else {
+            addLog(`❌ エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// MeCab動作確認
+async function checkMeCabStatus() {
+    addLog('🧠 MeCab動作状況を確認中...');
+    
+    try {
+        const response = await fetch('/api/mecab/status');
+        const result = await response.json();
+        
+        if (response.ok) {
+            if (result.mecab_available) {
+                addLog(`✅ ${result.message}`, 'success');
+                
+                if (result.test_extraction) {
+                    const testResult = result.test_extraction;
+                    Object.entries(testResult).forEach(([category, words]) => {
+                        if (Array.isArray(words) && words.length > 0) {
+                            const wordList = words.map(w => typeof w === 'object' ? w.word : w).join(', ');
+                            addLog(`📝 ${getCategoryLabel(category)}: ${wordList}`);
+                        }
+                    });
+                }
+            } else {
+                addLog(`⚠️ ${result.message}`, 'error');
+                if (result.suggestion) {
+                    addLog(`💡 ${result.suggestion}`, 'info');
+                }
+            }
+        } else {
+            addLog(`❌ MeCab確認エラー`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// カテゴリラベル変換
+function getCategoryLabel(category) {
+    const labels = {
+        'general_nouns': '一般名詞',
+        'proper_nouns': '固有名詞', 
+        'suru_nouns': 'サ変名詞',
+        'compound_nouns': '複合名詞',
+        'proper_noun': '固有名詞',
+        'common_nouns': '一般名詞',
+        'keywords': 'キーワード',
+        'important_terms': '重要語句'
+    };
+    return labels[category] || category;
+}
+
+// 完全パイプライン（全サイト）
+async function runFullPipelineAll() {
+    const articlesPerSite = document.getElementById('articlesPerSite').value;
+    
+    addLog(`⚡ 完全パイプライン（全サイト）実行開始 - 各サイト${articlesPerSite}件`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('articles_per_site', articlesPerSite);
+        
+        const response = await fetch('/api/scraping/full-pipeline-all', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📰 記事: ${result.news_collection.saved}件の新記事`);
+            addLog(`🔤 単語: ${result.word_extraction.extracted_words}個抽出`);
+            loadStats();
+            loadWords();
+        } else {
+            addLog(`❌ エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 単語リスト読み込み
+async function loadWords(page = 1, search = null) {
+    try {
+        let url = `/api/words/list?page=${page}&per_page=${perPage}`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayWords(data.words);
+            displayPagination(data.page, data.total_pages, data.search);
+            currentPage = page;
+        } else {
+            document.getElementById('wordsArea').innerHTML = 
+                '<div class="alert alert-warning">単語の読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('wordsArea').innerHTML = 
+            '<div class="alert alert-danger">単語の読み込みでエラーが発生しました</div>';
+    }
+}
+
+// 単語表示
+function displayWords(words) {
+    if (!words || words.length === 0) {
+        document.getElementById('wordsArea').innerHTML = 
+            '<div class="alert alert-info">単語が見つかりませんでした</div>';
+        return;
+    }
+    
+    const wordsHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>単語</th>
+                        <th>分類</th>
+                        <th>頻度</th>
+                        <th>重要度</th>
+                        <th>記事</th>
+                        <th>出現文脈</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${words.map(word => `
+                        <tr>
+                            <td>
+                                <span class="fw-bold text-primary">${word.word}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">${getWordTypeLabel(word.word_type)}</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">${word.frequency}</span>
+                            </td>
+                            <td>
+                                <div class="progress" style="width: 60px;">
+                                    <div class="progress-bar" role="progressbar" 
+                                         style="width: ${word.importance_score * 100}%"
+                                         title="${word.importance_score}">
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <a href="${word.article_url}" target="_blank" 
+                                   class="text-decoration-none" title="${word.article_title}">
+                                    <small>
+                                        ${word.article_title.length > 30 ? 
+                                          word.article_title.substring(0, 30) + '...' : 
+                                          word.article_title}
+                                    </small>
+                                    <br>
+                                    <span class="badge bg-light text-dark">${word.article_source}</span>
+                                </a>
+                            </td>
+                            <td>
+                                <small class="text-muted" title="${word.context}">
+                                    ${word.context ? 
+                                      (word.context.length > 50 ? word.context.substring(0, 50) + '...' : word.context) : 
+                                      ''}
+                                </small>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    document.getElementById('wordsArea').innerHTML = wordsHTML;
+}
+
+// 単語タイプラベル
+function getWordTypeLabel(type) {
+    const labels = {
+        'proper_nouns': '固有名詞',
+        'common_nouns': '一般名詞',
+        'keywords': 'キーワード',
+        'important_terms': '重要語句'
+    };
+    return labels[type] || type;
+}
+
+// ページネーション表示
+function displayPagination(currentPage, totalPages, search) {
+    if (totalPages <= 1) {
+        document.getElementById('wordsPagination').innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '<ul class="pagination pagination-sm justify-content-center">';
+    
+    // 前のページ
+    if (currentPage > 1) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" onclick="loadWords(${currentPage - 1}, '${search || ''}')">前</a>
+        </li>`;
+    }
+    
+    // ページ番号
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" href="#" onclick="loadWords(${i}, '${search || ''}')">${i}</a>
+        </li>`;
+    }
+    
+    // 次のページ
+    if (currentPage < totalPages) {
+        paginationHTML += `<li class="page-item">
+            <a class="page-link" href="#" onclick="loadWords(${currentPage + 1}, '${search || ''}')">次</a>
+        </li>`;
+    }
+    
+    paginationHTML += '</ul>';
+    document.getElementById('wordsPagination').innerHTML = paginationHTML;
+}
+
+// 単語検索
+function searchWords() {
+    const searchTerm = document.getElementById('wordSearch').value.trim();
+    if (searchTerm) {
+        loadWords(1, searchTerm);
+    } else {
+        loadWords(1);
+    }
+}
+
+// Enter キーで検索
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('wordSearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchWords();
+        }
+    });
+});
 
 // 統計情報読み込み
 async function loadStats() {
@@ -230,45 +602,9 @@ async function loadStats() {
                         ).join('')}
                     </div>
                 </div>
-                
-                <hr>
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <h5>頻出単語 TOP10</h5>
-                        ${stats.top_words.length > 0 ? 
-                            `<div class="list-group list-group-flush">
-                                ${stats.top_words.slice(0, 10).map((word, index) => 
-                                    `<div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>${word.word} <small class="text-muted">(${word.type})</small></span>
-                                        <span class="badge bg-primary">${word.frequency}</span>
-                                    </div>`
-                                ).join('')}
-                            </div>` :
-                            '<p class="text-muted">まだ単語が抽出されていません</p>'
-                        }
-                    </div>
-                    <div class="col-md-6">
-                        <h5>最新記事</h5>
-                        ${stats.recent_articles.length > 0 ?
-                            `<div class="list-group list-group-flush">
-                                ${stats.recent_articles.map(article => 
-                                    `<div class="list-group-item">
-                                        <div class="fw-bold">${article.title}</div>
-                                        <small class="text-muted">${article.source} - ${article.created_at}</small>
-                                    </div>`
-                                ).join('')}
-                            </div>` :
-                            '<p class="text-muted">まだ記事がありません</p>'
-                        }
-                    </div>
-                </div>
             `;
             
             document.getElementById('statsArea').innerHTML = statsHTML;
-        } else {
-            document.getElementById('statsArea').innerHTML = 
-                '<div class="alert alert-warning">統計情報の読み込みに失敗しました</div>';
         }
     } catch (error) {
         document.getElementById('statsArea').innerHTML = 
@@ -276,7 +612,7 @@ async function loadStats() {
     }
 }
 
-// サンプルデータ投入
+// その他の既存関数
 async function initSampleData() {
     addLog('🎲 サンプルデータを投入中...');
     
@@ -295,7 +631,6 @@ async function initSampleData() {
     }
 }
 
-// 統計確認
 async function checkStats() {
     addLog('📊 統計情報を確認中...');
     
@@ -315,10 +650,11 @@ async function checkStats() {
     }
 }
 
-// ページ読み込み時に統計情報を取得
+// ページ読み込み時の初期化
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
-    addLog('🚀 管理画面を初期化しました');
+    loadWords();
+    addLog('🚀 拡張管理画面を初期化しました');
 });
 </script>
 {% endblock %}

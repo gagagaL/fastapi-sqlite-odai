@@ -1,11 +1,18 @@
-from .news_scraper import YahooNewsScraper, NHKNewsScraper, ScrapedArticle
-from .text_processor import TextProcessor
-from .word_extractor import SimpleWordExtractor
+from .multi_site_scraper import BaseScraper, ScrapedArticle
+from .additional_scrapers import (
+    EnhancedMultiSiteScraper,
+    NewsPicksScraper,
+    YonnanaNyuusuScraper,
+    GoogleNewsScraper,
+    JijiNewsScraper
+)
 
 __all__ = [
-    'YahooNewsScraper',
-    'NHKNewsScraper', 
+    'BaseScraper',
     'ScrapedArticle',
-    'TextProcessor',
-    'SimpleWordExtractor'
+    'EnhancedMultiSiteScraper',
+    'NewsPicksScraper',
+    'YonnanaNyuusuScraper',
+    'GoogleNewsScraper',
+    'JijiNewsScraper'
 ]

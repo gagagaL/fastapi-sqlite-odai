@@ -1,11 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
 import time
-from typing import List, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Optional
+import aiohttp
+import asyncio
+from datetime import datetime
 import re
 from urllib.parse import urljoin
 import logging
+from dataclasses import dataclass  # この行を追加
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -187,3 +190,77 @@ class NHKNewsScraper:
         ]
         
         return sample_articles[:max_articles]
+
+async def collect_all_news(articles_per_site: int = 2) -> Dict:
+    """全サイトからニュース記事を収集"""
+    results = {
+        'collected': 0,
+        'saved': 0,
+        'sources': {}
+    }
+    
+    news_sites = {
+        'IT Media': 'https://www.itmedia.co.jp/news/',
+        'CNET Japan': 'https://japan.cnet.com/',
+        'TechCrunch': 'https://jp.techcrunch.com/'
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        for site_name, url in news_sites.items():
+            try:
+                async with session.get(url) as response:
+                    if response.status == 200:
+                        html = await response.text()
+                        soup = BeautifulSoup(html, 'lxml')
+                        
+                        # サイトごとの記事リンク取得ロジック
+                        articles = []
+                        if site_name == 'IT Media':
+                            articles = soup.select('.colBoxTitle a')[:articles_per_site]
+                        elif site_name == 'CNET Japan':
+                            articles = soup.select('.article_link')[:articles_per_site]
+                        elif site_name == 'TechCrunch':
+                            articles = soup.select('h2.post-block__title a')[:articles_per_site]
+                        
+                        results['collected'] += len(articles)
+                        results['sources'][site_name] = len(articles)
+                        
+            except Exception as e:
+                logger.error(f"Error collecting from {site_name}: {str(e)}")
+                continue
+    
+    return results
+
+class NewsArticle:
+    """ニュース記事データモデル"""
+    def __init__(self, title: str, content: str, url: str, source: str):
+        self.title = title
+        self.content = content
+        self.url = url
+        self.source = source
+        self.created_at = datetime.now()
+
+async def scrape_article(url: str, source: str) -> Optional[NewsArticle]:
+    """個別記事のスクレイピング"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'lxml')
+                    
+                    # サイトごとの記事コンテンツ取得ロジック
+                    title = soup.title.text if soup.title else ""
+                    content = ""
+                    
+                    if "itmedia.co.jp" in url:
+                        content = " ".join([p.text for p in soup.select('.inner')])
+                    elif "japan.cnet.com" in url:
+                        content = " ".join([p.text for p in soup.select('.article_body p')])
+                    elif "jp.techcrunch.com" in url:
+                        content = " ".join([p.text for p in soup.select('.article-content p')])
+                    
+                    return NewsArticle(title=title, content=content, url=url, source=source)
+    except Exception as e:
+        logger.error(f"Error scraping article {url}: {str(e)}")
+        return None

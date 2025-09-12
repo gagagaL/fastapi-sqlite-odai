@@ -12,3 +12,10 @@ python-dotenv==1.0.0
 pytest==7.4.3
 httpx==0.25.2
 lxml==4.9.3
+mecab-python3==1.0.6
+aiohttp>=3.8.0
+aiosignal>=1.2.0
+async-timeout>=4.0.0
+attrs>=21.2.0
+multidict>=6.0.0
+yarl>=1.7.0

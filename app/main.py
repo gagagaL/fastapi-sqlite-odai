@@ -3,11 +3,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from app.api import scraping  # 新しく追加
+from typing import Dict, List  # Dictを追加
+from collections import defaultdict, Counter  # 追加
 from .database.connection import get_db, init_db
 from .database.crud import NewsArticleCRUD, ExtractedWordCRUD, OgiriTopicCRUD, TrainingTopicCRUD
 from .database.models import NewsArticle as NewsArticleModel, ExtractedWord, OgiriTopic, TrainingTopic
 from .config import get_settings
-from .scraping import YahooNewsScraper, NHKNewsScraper, TextProcessor, SimpleWordExtractor
 import os
 
 # 設定読み込み
@@ -27,6 +29,8 @@ os.makedirs("app/templates", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+app.include_router(scraping.router)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -449,3 +453,524 @@ async def get_scraping_stats(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"統計取得エラー: {e}")
         raise HTTPException(status_code=500, detail=f"統計取得エラー: {str(e)}")
+
+
+@app.post("/api/scraping/collect-all-news-enhanced")
+async def collect_all_news_enhanced(
+    articles_per_site: int = 2,
+    db: Session = Depends(get_db)
+):
+    """拡張版: 全ニュースサイトから記事を収集（9サイト対応）"""
+    
+    if articles_per_site > 5:
+        raise HTTPException(status_code=400, detail="サイトあたりの記事数は5件までです")
+    
+    try:
+        from .scraping.additional_scrapers import EnhancedMultiSiteScraper
+        
+        # 拡張版複数サイトスクレイパー初期化
+        enhanced_scraper = EnhancedMultiSiteScraper()
+        
+        # 全サイトから記事収集
+        all_articles = enhanced_scraper.scrape_all_sites(articles_per_site)
+        
+        if not all_articles:
+            return {
+                "message": "記事が取得できませんでした", 
+                "collected": 0, 
+                "saved": 0,
+                "sources": [],
+                "total_sites": len(enhanced_scraper.get_available_sources())
+            }
+        
+        # データベースに保存
+        saved_count = 0
+        sources_count = defaultdict(int)
+        saved_articles = []
+        
+        for article in all_articles:
+            try:
+                # 既存チェック
+                existing = db.query(NewsArticleModel).filter(NewsArticleModel.url == article.url).first()
+                if not existing:
+                    saved_article = NewsArticleCRUD.create(
+                        db,
+                        title=article.title,
+                        content=article.content,
+                        url=article.url,
+                        source=article.source
+                    )
+                    saved_count += 1
+                    sources_count[article.source] += 1
+                    saved_articles.append({
+                        "id": saved_article.id,
+                        "title": article.title,
+                        "source": article.source,
+                        "url": article.url
+                    })
+                else:
+                    print(f"記事は既に存在します: {article.url}")
+            except Exception as e:
+                print(f"記事保存エラー: {e}")
+                continue
+        
+        return {
+            "message": f"9サイトから{saved_count}件の新しい記事を収集しました",
+            "collected": len(all_articles),
+            "saved": saved_count,
+            "sources": dict(sources_count),
+            "available_sources": enhanced_scraper.get_available_sources(),
+            "total_sites": len(enhanced_scraper.get_available_sources()),
+            "sample_articles": saved_articles[:5]
+        }
+        
+    except Exception as e:
+        print(f"拡張版ニュース収集エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"拡張版ニュース収集エラー: {str(e)}")
+
+
+@app.post("/api/scraping/extract-words-advanced")
+async def extract_words_advanced(
+    max_articles: int = 20,
+    db: Session = Depends(get_db)
+):
+    """高度な単語抽出"""
+    
+    try:
+        from .scraping.advanced_word_extractor import AdvancedWordExtractor
+        from .database.crud import ExtractedWordCRUD
+        
+        # 最新の記事を取得
+        articles = NewsArticleCRUD.get_all(db, limit=max_articles)
+        
+        if not articles:
+            raise HTTPException(status_code=404, detail="記事が見つかりません")
+        
+        # 高度な単語抽出器初期化
+        extractor = AdvancedWordExtractor()
+        
+        extracted_count = 0
+        processed_articles = 0
+        all_words = []
+        
+        for article in articles:
+            try:
+                # 文脈付きで単語抽出
+                word_contexts = extractor.extract_with_context(f"{article.title} {article.content}")
+                
+                for word_data in word_contexts:
+                    word = word_data["word"]
+                    category = word_data["category"]
+                    context = word_data["context"]
+                    
+                    if len(word) >= 2:
+                        # 重要度スコア計算
+                        importance = extractor.get_word_importance_score(word, article.content)
+                        
+                        # データベースに保存
+                        ExtractedWordCRUD.create_or_increment_advanced(
+                            db,
+                            word=word,
+                            word_type=category,
+                            source_article_id=article.id,
+                            importance_score=importance,
+                            context=context
+                        )
+                        
+                        all_words.append(word)
+                        extracted_count += 1
+                
+                processed_articles += 1
+                
+            except Exception as e:
+                print(f"記事処理エラー (ID: {article.id}): {e}")
+                continue
+        
+        # 統計計算
+        word_stats = Counter(all_words)
+        top_words = dict(word_stats.most_common(10))
+        
+        return {
+            "message": f"{processed_articles}件の記事から{extracted_count}個の単語を抽出しました",
+            "processed_articles": processed_articles,
+            "extracted_words": extracted_count,
+            "unique_words": len(set(all_words)),
+            "top_words": top_words,
+            "extraction_method": "advanced"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"高度な単語抽出エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"高度な単語抽出エラー: {str(e)}")
+
+@app.get("/api/words/list")
+async def get_words_list(
+    page: int = 1,
+    per_page: int = 50,
+    search: str = None,
+    db: Session = Depends(get_db)
+):
+    """単語リスト取得（記事情報付き）"""
+    
+    try:
+        from .database.crud import ExtractedWordCRUD
+        
+        if search:
+            # 検索モード
+            words = ExtractedWordCRUD.search_words(db, search, per_page)
+            total_count = len(words)
+        else:
+            # 一覧モード
+            offset = (page - 1) * per_page
+            
+            # 重要度順で取得
+            query = db.query(ExtractedWord, NewsArticleModel).join(
+                NewsArticleModel, ExtractedWord.source_article_id == NewsArticleModel.id
+            ).order_by(
+                ExtractedWord.importance_score.desc(),
+                ExtractedWord.frequency.desc()
+            ).offset(offset).limit(per_page)
+            
+            words = []
+            for word, article in query:
+                words.append({
+                    "id": word.id,
+                    "word": word.word,
+                    "word_type": word.word_type,
+                    "frequency": word.frequency,
+                    "importance_score": round(word.importance_score, 3),
+                    "context": word.context,
+                    "article_title": article.title,
+                    "article_url": article.url,
+                    "article_source": article.source,
+                    "created_at": word.created_at.strftime("%Y-%m-%d %H:%M")
+                })
+            
+            # 総数取得
+            total_count = db.query(ExtractedWord).count()
+        
+        return {
+            "words": words,
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": (total_count + per_page - 1) // per_page,
+            "search": search
+        }
+        
+    except Exception as e:
+        print(f"単語リスト取得エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"単語リスト取得エラー: {str(e)}")
+
+@app.post("/api/scraping/full-pipeline-enhanced")
+async def run_full_pipeline_enhanced(
+    articles_per_site: int = 2,
+    db: Session = Depends(get_db)
+):
+    """拡張版完全パイプライン（9サイト収集→高度な単語抽出）"""
+    
+    try:
+        # Step 1: 拡張版全サイトからニュース収集
+        collect_result = await collect_all_news_enhanced(articles_per_site, db)
+        
+        if collect_result["saved"] == 0:
+            return {
+                "message": "新しい記事がありませんでした",
+                "news_collection": collect_result,
+                "word_extraction": {"extracted_words": 0}
+            }
+        
+        # Step 2: 高度な単語抽出
+        try:
+            extract_result = await extract_words_advanced(collect_result["saved"], db)
+        except:
+            # フォールバック: シンプル抽出
+            from .scraping import SimpleWordExtractor, TextProcessor
+            processor = TextProcessor()
+            extractor = SimpleWordExtractor()
+            
+            articles = NewsArticleCRUD.get_all(db, limit=collect_result["saved"])
+            extracted_count = 0
+            
+            for article in articles:
+                clean_text = processor.clean_text(f"{article.title} {article.content}")
+                extracted = extractor.extract_words(clean_text)
+                
+                for category, words in extracted.items():
+                    for word in words:
+                        if len(word) >= 2:
+                            ExtractedWordCRUD.create_or_increment(
+                                db, word, category, article.id
+                            )
+                            extracted_count += 1
+            
+            extract_result = {
+                "message": f"シンプル抽出で{extracted_count}個の単語を抽出",
+                "extracted_words": extracted_count
+            }
+        
+        return {
+            "message": "拡張版完全パイプライン（9サイト対応）完了",
+            "news_collection": collect_result,
+            "word_extraction": extract_result,
+            "pipeline_type": "enhanced_9_sites"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"拡張版パイプラインエラー: {e}")
+        raise HTTPException(status_code=500, detail=f"拡張版パイプラインエラー: {str(e)}")
+
+@app.post("/api/scraping/extract-words-mecab")
+async def extract_words_mecab(
+    max_articles: int = 20,
+    db: Session = Depends(get_db)
+):
+    """MeCab形態素解析による名詞抽出"""
+    
+    try:
+        # MeCab抽出器初期化
+        mecab_extractor = MeCabWordExtractor()
+        
+        if not mecab_extractor.is_mecab_available():
+            raise HTTPException(status_code=500, detail="MeCabが利用できません")
+        
+        # 最新の記事を取得
+        articles = NewsArticleCRUD.get_all(db, limit=max_articles)
+        
+        if not articles:
+            raise HTTPException(status_code=404, detail="記事が見つかりません")
+        
+        extracted_count = 0
+        processed_articles = 0
+        all_words = []
+        word_categories = defaultdict(int)
+        
+        for article in articles:
+            try:
+                # MeCabで名詞抽出
+                word_contexts = mecab_extractor.extract_with_context(f"{article.title} {article.content}")
+                
+                for word_data in word_contexts:
+                    word = word_data["word"]
+                    category = word_data["category"]
+                    pos_detail = word_data["pos_detail"]
+                    context = word_data["context"]
+                    
+                    if len(word) >= 2:
+                        # 重要度スコア計算
+                        importance = mecab_extractor.get_word_importance_score(
+                            word, pos_detail, article.content
+                        )
+                        
+                        # データベースに保存（ExtractedWordCRUDの拡張版使用）
+                        try:
+                            # 既存のcreate_or_increment_advancedを使用
+                            ExtractedWordCRUD.create_or_increment_advanced(
+                                db,
+                                word=word,
+                                word_type=category,
+                                source_article_id=article.id,
+                                importance_score=importance,
+                                context=context
+                            )
+                            
+                            all_words.append(word)
+                            word_categories[category] += 1
+                            extracted_count += 1
+                            
+                        except Exception as e:
+                            print(f"単語保存エラー: {word} - {e}")
+                            continue
+                
+                processed_articles += 1
+                
+            except Exception as e:
+                print(f"記事処理エラー (ID: {article.id}): {e}")
+                continue
+        
+        # 統計計算
+        word_stats = Counter(all_words)
+        top_words = dict(word_stats.most_common(10))
+        
+        return {
+            "message": f"{processed_articles}件の記事から{extracted_count}個の名詞を抽出しました",
+            "processed_articles": processed_articles,
+            "extracted_words": extracted_count,
+            "unique_words": len(set(all_words)),
+            "word_categories": dict(word_categories),
+            "top_words": top_words,
+            "extraction_method": "mecab_morphological_analysis"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"MeCab名詞抽出エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"MeCab名詞抽出エラー: {str(e)}")
+
+@app.post("/api/scraping/full-pipeline-mecab")
+async def run_full_pipeline_mecab(
+    articles_per_site: int = 2,
+    db: Session = Depends(get_db)
+):
+    """完全パイプライン（全サイト収集→MeCab名詞抽出）"""
+    
+    try:
+        # Step 1: 全サイトからニュース収集
+        collect_result = await collect_all_news(articles_per_site, db)
+        
+        if collect_result["saved"] == 0:
+            return {
+                "message": "新しい記事がありませんでした",
+                "news_collection": collect_result,
+                "word_extraction": {"extracted_words": 0}
+            }
+        
+        # Step 2: MeCabで名詞抽出
+        extract_result = await extract_words_mecab(collect_result["saved"], db)
+        
+        return {
+            "message": "完全パイプライン（MeCab形態素解析）完了",
+            "news_collection": collect_result,
+            "word_extraction": extract_result,
+            "pipeline_type": "full_mecab_morphological"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"MeCabパイプラインエラー: {e}")
+        raise HTTPException(status_code=500, detail=f"MeCabパイプラインエラー: {str(e)}")
+
+@app.get("/api/mecab/status")
+async def get_mecab_status():
+    """MeCabの動作状況を確認"""
+    try:
+        mecab_extractor = MeCabWordExtractor()
+        
+        if mecab_extractor.is_mecab_available():
+            # テスト解析
+            test_result = mecab_extractor.extract_words_mecab("人工知能の技術が進歩している。")
+            
+            return {
+                "status": "available",
+                "message": "MeCabは正常に動作しています",
+                "test_extraction": test_result,
+                "mecab_available": True
+            }
+        else:
+            return {
+                "status": "unavailable", 
+                "message": "MeCabが利用できません",
+                "mecab_available": False,
+                "suggestion": "Dockerコンテナを再起動してMeCabをインストールしてください"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"MeCab確認エラー: {str(e)}",
+            "mecab_available": False
+        }
+
+@app.post("/api/admin/repair-database")
+async def repair_database():
+    """データベース修復（テーブル再作成）"""
+    try:
+        from .database.connection import engine
+        from .database.models import Base
+        
+        # 全テーブルを削除して再作成
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        
+        return {
+            "message": "データベースを修復しました（全テーブル再作成）",
+            "status": "success"
+        }
+    except Exception as e:
+        print(f"データベース修復エラー: {e}")
+        raise HTTPException(status_code=500, detail=f"データベース修復エラー: {str(e)}")
+
+
+@app.get("/api/admin/database-status")
+async def get_database_status(db: Session = Depends(get_db)):
+    """データベース状況確認"""
+    try:
+        status = {}
+        
+        # 各テーブルの存在確認
+        tables = ['news_articles', 'extracted_words', 'ogiri_topics', 'training_topics']
+        
+        for table in tables:
+            try:
+                if table == 'news_articles':
+                    count = db.query(NewsArticleModel).count()
+                elif table == 'extracted_words':
+                    count = db.query(ExtractedWord).count()
+                elif table == 'ogiri_topics':
+                    count = db.query(OgiriTopic).count()
+                elif table == 'training_topics':
+                    count = db.query(TrainingTopic).count()
+                
+                status[table] = {"exists": True, "count": count}
+                
+            except Exception as e:
+                status[table] = {"exists": False, "error": str(e)}
+        
+        return {
+            "database_status": status,
+            "overall_status": "healthy" if all(t["exists"] for t in status.values()) else "needs_repair"
+        }
+        
+    except Exception as e:
+        return {
+            "database_status": "error",
+            "error": str(e),
+            "overall_status": "error"
+        }
+
+# app/database/crud.py の ExtractedWordCRUD に追加
+
+@staticmethod
+def create_or_increment_advanced(
+    db: Session, 
+    word: str, 
+    word_type: str, 
+    source_article_id: int = None,
+    importance_score: float = 0.0,
+    context: str = None
+):
+    """単語を作成、または存在する場合は頻度をインクリメント（拡張版）"""
+    
+    # 同じ記事からの同じ単語は1回のみカウント
+    existing_word = db.query(ExtractedWord).filter(
+        ExtractedWord.word == word,
+        ExtractedWord.source_article_id == source_article_id
+    ).first()
+    
+    if existing_word:
+        # 既存の場合は重要度スコアを更新（最大値を採用）
+        existing_word.importance_score = max(existing_word.importance_score, importance_score)
+        if context and not existing_word.context:
+            existing_word.context = context[:500]
+        db.commit()
+        db.refresh(existing_word)
+        return existing_word
+    else:
+        # 新規作成
+        new_word = ExtractedWord(
+            word=word,
+            word_type=word_type,
+            source_article_id=source_article_id,
+            importance_score=importance_score,
+            context=context[:500] if context else None
+        )
+        db.add(new_word)
+        db.commit()
+        db.refresh(new_word)
+        return new_word
