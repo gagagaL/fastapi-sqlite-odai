@@ -547,65 +547,6 @@ async def extract_words_advanced(
         print(f"高度な単語抽出エラー: {e}")
         raise HTTPException(status_code=500, detail=f"高度な単語抽出エラー: {str(e)}")
 
-@app.get("/api/words/list")
-async def get_words_list(
-    page: int = 1,
-    per_page: int = 50,
-    search: str = None,
-    db: Session = Depends(get_db)
-):
-    """単語リスト取得（記事情報付き）"""
-    
-    try:
-        from .database.crud import ExtractedWordCRUD
-        
-        if search:
-            # 検索モード
-            words = ExtractedWordCRUD.search_words(db, search, per_page)
-            total_count = len(words)
-        else:
-            # 一覧モード
-            offset = (page - 1) * per_page
-            
-            # 重要度順で取得
-            query = db.query(ExtractedWord, NewsArticleModel).join(
-                NewsArticleModel, ExtractedWord.source_article_id == NewsArticleModel.id
-            ).order_by(
-                ExtractedWord.importance_score.desc(),
-                ExtractedWord.frequency.desc()
-            ).offset(offset).limit(per_page)
-            
-            words = []
-            for word, article in query:
-                words.append({
-                    "id": word.id,
-                    "word": word.word,
-                    "word_type": word.word_type,
-                    "frequency": word.frequency,
-                    "importance_score": round(word.importance_score, 3),
-                    "context": word.context,
-                    "article_title": article.title,
-                    "article_url": article.url,
-                    "article_source": article.source,
-                    "created_at": word.created_at.strftime("%Y-%m-%d %H:%M")
-                })
-            
-            # 総数取得
-            total_count = db.query(ExtractedWord).count()
-        
-        return {
-            "words": words,
-            "page": page,
-            "per_page": per_page,
-            "total_count": total_count,
-            "total_pages": (total_count + per_page - 1) // per_page,
-            "search": search
-        }
-        
-    except Exception as e:
-        print(f"単語リスト取得エラー: {e}")
-        raise HTTPException(status_code=500, detail=f"単語リスト取得エラー: {str(e)}")
-
 @app.post("/api/scraping/full-pipeline-enhanced")
 async def run_full_pipeline_enhanced(
     articles_per_site: int = 2,
