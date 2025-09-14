@@ -10,6 +10,8 @@ from sqlalchemy import Column, Integer, String, Text, DateTime
 from app.database.database import Base  # 追加
 from app.models.news_article import NewsArticle
 from app.models.extracted_word import ExtractedWord
+from app.database.crud import ExtractedWordCRUD, NewsArticleCRUD
+from app.scraping.word_extractor import MeCabWordExtractor
 import logging
 import ssl
 import aiohttp
@@ -264,6 +266,8 @@ async def save_article_with_words(db: Session, article: NewsArticle) -> bool:
 # collect_all_news関数内で使用
 async def collect_all_news(articles_per_site: int = 2, db: Session = None) -> Dict:
     """全サイトからニュース記事を収集"""
+    from .multi_site_scraper import EnhancedMultiSiteScraper
+    
     results = {
         'collected': 0,
         'saved': 0,
@@ -271,36 +275,45 @@ async def collect_all_news(articles_per_site: int = 2, db: Session = None) -> Di
         'articles': []
     }
     
-    scrapers = [YahooNewsScraper(), NHKNewsScraper()]
+    # 全サイトのスクレイパーを使用
+    scraper = EnhancedMultiSiteScraper()
+    all_articles = scraper.scrape_all_sites(articles_per_site)
     
-    for scraper in scrapers:
-        try:
-            articles = scraper.scrape_articles(articles_per_site)
-            for article_data in articles:
-                results['collected'] += 1
-                
-                if db:
-                    article = NewsArticle(
-                        title=article_data.title,
-                        content=article_data.content,
-                        url=article_data.url,
-                        source=article_data.source
-                    )
-                    
-                    if await save_article_with_words(db, article):
-                        results['saved'] += 1
-                
-                results['articles'].append({
-                    'title': article_data.title,
-                    'content': article_data.content[:200] + '...',
-                    'url': article_data.url,
-                    'source': article_data.source
-                })
+    for article_data in all_articles:
+        results['collected'] += 1
+        
+        if db:
+            # 記事の重複チェックと保存
+            article_data_dict = {
+                'title': article_data.title,
+                'content': article_data.content,
+                'url': article_data.url,
+                'source': article_data.source
+            }
             
-            results['sources'][scraper.source_name] = len(articles)
-            
-        except Exception as e:
-            logger.error(f"{scraper.source_name}からの記事収集エラー: {e}")
+            saved_article = NewsArticleCRUD.create_if_not_exists(db, article_data_dict)
+            if saved_article:
+                results['saved'] += 1
+                # 単語抽出
+                extractor = MeCabWordExtractor()
+                nouns = extractor.extract_nouns(saved_article.content)
+                for noun in nouns:
+                    ExtractedWordCRUD.create_or_update_global(db, {
+                        'word': noun['word'],
+                        'category': noun['category'],
+                        'context': noun['context']
+                    }, saved_article.id)
+        
+        results['articles'].append({
+            'title': article_data.title,
+            'content': article_data.content[:200] + '...',
+            'url': article_data.url,
+            'source': article_data.source
+        })
+        
+        # ソース別の集計
+        source = article_data.source
+        results['sources'][source] = results['sources'].get(source, 0) + 1
     
     return results
 

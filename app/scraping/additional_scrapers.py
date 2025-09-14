@@ -17,10 +17,11 @@ class NewsPicksScraper(BaseScraper):
     def __init__(self):
         super().__init__("NewsPicks", "https://newspicks.com")
     
-    def get_article_links(self, max_links: int = 10) -> List[str]:
+    def get_article_links(self, max_links: int = 10, category: str = None) -> List[str]:
         try:
-            # NewsPicksのニュース一覧ページ
-            response = self.session.get(f"{self.base_url}/news", timeout=10)
+            # カテゴリに応じたURLを取得
+            url = self.get_category_url(category) if category else f"{self.base_url}/news"
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -41,6 +42,16 @@ class NewsPicksScraper(BaseScraper):
         except Exception as e:
             logger.error(f"NewsPicks記事リンク取得エラー: {e}")
             return []
+    
+    def get_category_url(self, category: str) -> str:
+        """NewsPicksのカテゴリ別URLを取得"""
+        category_urls = {
+            'sports': f"{self.base_url}/news/sports",
+            'entertainment': f"{self.base_url}/news/entertainment",
+            'politics': f"{self.base_url}/news/politics", 
+            'general': f"{self.base_url}/news"
+        }
+        return category_urls.get(category, f"{self.base_url}/news")
     
     def scrape_article(self, url: str) -> Optional[ScrapedArticle]:
         try:
@@ -87,9 +98,11 @@ class YonnanaNyuusuScraper(BaseScraper):
     def __init__(self):
         super().__init__("47NEWS", "https://www.47news.jp")
     
-    def get_article_links(self, max_links: int = 10) -> List[str]:
+    def get_article_links(self, max_links: int = 10, category: str = None) -> List[str]:
         try:
-            response = self.session.get(f"{self.base_url}/news", timeout=10)
+            # カテゴリに応じたURLを取得
+            url = self.get_category_url(category) if category else f"{self.base_url}/news"
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -110,6 +123,16 @@ class YonnanaNyuusuScraper(BaseScraper):
         except Exception as e:
             logger.error(f"47NEWS記事リンク取得エラー: {e}")
             return []
+    
+    def get_category_url(self, category: str) -> str:
+        """47NEWSのカテゴリ別URLを取得"""
+        category_urls = {
+            'sports': f"{self.base_url}/sports",
+            'entertainment': f"{self.base_url}/entertainment",
+            'politics': f"{self.base_url}/politics",
+            'general': f"{self.base_url}/news"
+        }
+        return category_urls.get(category, f"{self.base_url}/news")
     
     def scrape_article(self, url: str) -> Optional[ScrapedArticle]:
         try:
@@ -157,10 +180,11 @@ class GoogleNewsScraper(BaseScraper):
         # GoogleニュースはRSSを使用
         self.rss_url = "https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja"
     
-    def get_article_links(self, max_links: int = 10) -> List[str]:
+    def get_article_links(self, max_links: int = 10, category: str = None) -> List[str]:
         try:
-            # GoogleニュースRSSフィードを取得
-            response = self.session.get(self.rss_url, timeout=10)
+            # カテゴリに応じたRSSフィードURLを取得
+            rss_url = self.get_category_rss_url(category) if category else self.rss_url
+            response = self.session.get(rss_url, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'xml')
@@ -192,6 +216,16 @@ class GoogleNewsScraper(BaseScraper):
         except Exception as e:
             logger.error(f"Googleニュース記事リンク取得エラー: {e}")
             return []
+    
+    def get_category_rss_url(self, category: str) -> str:
+        """Googleニュースのカテゴリ別RSSフィードURLを取得"""
+        category_rss_urls = {
+            'sports': "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1ZEdnU0FtVnVHZ0pWVXlnQVAB?hl=ja&gl=JP&ceid=JP:ja",
+            'entertainment': "https://news.google.com/rss/topics/CAAqJggKIiBDQkFTRWdvSUwyMHZNRGx1ZEdnU0FtVnVHZ0pWVXlnQVAB?hl=ja&gl=JP&ceid=JP:ja",
+            'politics': "https://news.google.com/rss/topics/CAAqIQgKIhtDQkFTRGdvSUwyMHZNR3QwTlRFU0FtVnVLQUFQAQ?hl=ja&gl=JP&ceid=JP:ja",
+            'general': "https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja"
+        }
+        return category_rss_urls.get(category, self.rss_url)
     
     def scrape_article(self, url: str) -> Optional[ScrapedArticle]:
         try:
@@ -256,9 +290,11 @@ class JijiNewsScraper(BaseScraper):
     def __init__(self):
         super().__init__("時事通信", "https://www.jiji.com")
     
-    def get_article_links(self, max_links: int = 10) -> List[str]:
+    def get_article_links(self, max_links: int = 10, category: str = None) -> List[str]:
         try:
-            response = self.session.get(f"{self.base_url}/news", timeout=10)
+            # カテゴリに応じたURLを取得
+            url = self.get_category_url(category) if category else f"{self.base_url}/news"
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -278,6 +314,16 @@ class JijiNewsScraper(BaseScraper):
         except Exception as e:
             logger.error(f"時事通信記事リンク取得エラー: {e}")
             return []
+    
+    def get_category_url(self, category: str) -> str:
+        """時事通信のカテゴリ別URLを取得"""
+        category_urls = {
+            'sports': f"{self.base_url}/sports",
+            'entertainment': f"{self.base_url}/entertainment",
+            'politics': f"{self.base_url}/politics",
+            'general': f"{self.base_url}/news"
+        }
+        return category_urls.get(category, f"{self.base_url}/news")
     
     def scrape_article(self, url: str) -> Optional[ScrapedArticle]:
         try:

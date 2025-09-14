@@ -34,6 +34,39 @@ class NewsArticleCRUD:
         db.commit()
         db.refresh(db_article)
         return db_article
+    
+    @staticmethod
+    def create_if_not_exists(db: Session, article_data: Dict) -> Optional[NewsArticle]:
+        """記事が存在しない場合のみ作成（URLで重複チェック）"""
+        # URLで重複チェック
+        existing = db.query(NewsArticle).filter(
+            NewsArticle.url == article_data['url']
+        ).first()
+        
+        if existing:
+            return None  # 既に存在する場合はNoneを返す
+        
+        # 新しい記事を作成
+        db_article = NewsArticle(
+            title=article_data['title'],
+            content=article_data['content'],
+            url=article_data['url'],
+            source=article_data['source']
+        )
+        db.add(db_article)
+        db.commit()
+        db.refresh(db_article)
+        return db_article
+    
+    @staticmethod
+    def get_by_url(db: Session, url: str) -> Optional[NewsArticle]:
+        """URLで記事を検索"""
+        return db.query(NewsArticle).filter(NewsArticle.url == url).first()
+    
+    @staticmethod
+    def get_recent(db: Session, limit: int) -> List[NewsArticle]:
+        """最近の記事を取得"""
+        return db.query(NewsArticle).order_by(desc(NewsArticle.created_at)).limit(limit).all()
 
     @staticmethod
     def get_stats(db: Session) -> Dict:
@@ -52,7 +85,7 @@ class NewsArticleCRUD:
 class ExtractedWordCRUD:
     @staticmethod
     def create_or_update(db: Session, word_data: Dict, article_id: int) -> ExtractedWord:
-        """単語を作成または更新"""
+        """単語を作成または更新（記事IDごと）"""
         word = word_data['word']
         existing = db.query(ExtractedWord).filter(
             ExtractedWord.word == word,
@@ -64,6 +97,37 @@ class ExtractedWordCRUD:
             db.commit()
             return existing
             
+        new_word = ExtractedWord(
+            word=word,
+            word_type=word_data.get('category', '一般'),
+            context=word_data.get('context', ''),
+            source_article_id=article_id,
+            frequency=1
+        )
+        
+        db.add(new_word)
+        db.commit()
+        return new_word
+    
+    @staticmethod
+    def create_or_update_global(db: Session, word_data: Dict, article_id: int) -> ExtractedWord:
+        """単語を作成または更新（全記事で重複チェック）"""
+        word = word_data['word']
+        # 同じ単語が既に存在するかチェック（記事IDに関係なく）
+        existing = db.query(ExtractedWord).filter(
+            ExtractedWord.word == word
+        ).first()
+        
+        if existing:
+            # 既存の単語の頻度を増加
+            existing.frequency += 1
+            # 最初の記事IDを保持（記事IDが小さい方を優先）
+            if article_id < existing.source_article_id:
+                existing.source_article_id = article_id
+            db.commit()
+            return existing
+            
+        # 新しい単語を作成
         new_word = ExtractedWord(
             word=word,
             word_type=word_data.get('category', '一般'),
