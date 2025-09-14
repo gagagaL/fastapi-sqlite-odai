@@ -1,26 +1,37 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from app.api import scraping  # 新しく追加
-from typing import Dict, List  # Dictを追加
-from collections import defaultdict, Counter  # 追加
-from .database.connection import get_db, init_db
-from .database.crud import NewsArticleCRUD, ExtractedWordCRUD, OgiriTopicCRUD, TrainingTopicCRUD
-from .database.models import NewsArticle as NewsArticleModel, ExtractedWord, OgiriTopic, TrainingTopic
-from .config import get_settings
+from app.database.connection import init_db, get_db
+from app.api import scraping, admin, words
+import logging
 import os
+from app.database.crud import NewsArticleCRUD  # 追加
+from sqlalchemy import func
+from fastapi import HTTPException
+from app.models.news_article import NewsArticle
+from app.models.extracted_word import ExtractedWord
 
-# 設定読み込み
-settings = get_settings()
+# ロギング設定
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # FastAPIアプリケーション初期化
-app = FastAPI(
-    title=settings.app_name,
-    description="ニュースから単語を抽出して大喜利のお題を自動生成",
-    version="1.0.0"
-)
+app = FastAPI(title="大喜利お題ジェネレーター")
+
+# 起動時にデータベースを初期化
+@app.on_event("startup")
+async def startup_event():
+    """アプリケーション起動時の初期化処理"""
+    logger.info("アプリケーションを起動中...")
+    try:
+        # 強制的にデータベースを初期化
+        from app.database.database import Base, engine
+        Base.metadata.drop_all(bind=engine)  # 既存のテーブルを削除
+        Base.metadata.create_all(bind=engine)  # テーブルを再作成
+        logger.info("データベースを初期化しました")
+    except Exception as e:
+        logger.error(f"データベース初期化エラー: {e}")
 
 # 静的ファイルとテンプレートの設定
 os.makedirs("app/static/css", exist_ok=True)
@@ -29,94 +40,35 @@ os.makedirs("app/templates", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+# ルーターの登録
 app.include_router(scraping.router)
+app.include_router(admin.router)
+app.include_router(words.router)
 
-
-@app.on_event("startup")
-async def startup_event():
-    """アプリケーション起動時の処理"""
-    await init_db()
-    print(f"🚀 {settings.app_name} が起動しました！")
-    print(f"📖 API仕様: http://localhost:8000/docs")
-
-# ============================================
-# Web画面のルート
-# ============================================
 
 @app.get("/")
 async def root(request: Request, db: Session = Depends(get_db)):
     """トップページ"""
-    # 統計情報を取得（エラー回避版）
-    try:
-        stats = {
-            "news_count": NewsArticleCRUD.get_count(db),
-            "word_count": db.query(ExtractedWord).count(),
-            "topic_count": db.query(OgiriTopic).count(),
-            "training_count": db.query(TrainingTopic).count()
-        }
-    except Exception as e:
-        print(f"統計取得エラー: {e}")
-        stats = {
-            "news_count": 0,
-            "word_count": 0,
-            "topic_count": 0,
-            "training_count": 0
-        }
-    
-    # 最新のお題をいくつか取得
-    try:
-        recent_topics = OgiriTopicCRUD.get_all(db, limit=5)
-    except Exception as e:
-        print(f"お題取得エラー: {e}")
-        recent_topics = []
-    
     return templates.TemplateResponse(
-        "index.html", 
-        {
-            "request": request, 
-            "title": settings.app_name,
-            "stats": stats,
-            "recent_topics": recent_topics
-        }
+        "index.html",
+        {"request": request}
     )
 
 @app.get("/topic")
-async def show_random_topic(request: Request, db: Session = Depends(get_db)):
-    """ランダムお題表示ページ"""
-    try:
-        topic = OgiriTopicCRUD.get_random(db)
-    except:
-        topic = None
-    
-    if not topic:
-        # お題がない場合はサンプルお題を作成
-        sample_topics = [
-            "こんな時に限って必ず起こる、スマホの電池切れあるある",
-            "宇宙人が地球に来て一番驚いたこと", 
-            "AIが進化しすぎて困ること"
-        ]
-        try:
-            for sample in sample_topics:
-                OgiriTopicCRUD.create(db, sample)
-            topic = OgiriTopicCRUD.get_random(db)
-        except Exception as e:
-            print(f"サンプルお題作成エラー: {e}")
-    
+async def topic_page(request: Request, db: Session = Depends(get_db)):
+    """お題ページ"""
     return templates.TemplateResponse(
         "topic.html",
-        {
-            "request": request,
-            "title": "お題表示", 
-            "topic": topic
-        }
+        {"request": request}
     )
 
 @app.get("/admin")
-async def admin_page(request: Request):
-    """管理画面（基本版）"""
+async def admin_page(request: Request, db: Session = Depends(get_db)):
+    """管理ページ"""
     return templates.TemplateResponse(
         "admin.html",
-        {"request": request, "title": "管理画面"}
+        {"request": request}
     )
 
 # ============================================
@@ -403,55 +355,45 @@ async def run_full_scraping_pipeline(
 @app.get("/api/scraping/stats")
 async def get_scraping_stats(db: Session = Depends(get_db)):
     """スクレイピング統計情報"""
-    
     try:
         # 基本統計
-        total_articles = NewsArticleCRUD.get_count(db)
+        total_articles = db.query(NewsArticle).count()
         total_words = db.query(ExtractedWord).count()
         
         # ソース別統計
         source_stats = {}
-        try:
-            sources = db.query(NewsArticleModel.source, func.count(NewsArticleModel.id)).group_by(NewsArticleModel.source).all()
-            for source, count in sources:
-                source_stats[source or "不明"] = count
-        except Exception as e:
-            print(f"ソース統計エラー: {e}")
-            source_stats = {"エラー": "統計取得失敗"}
+        sources = db.query(
+            NewsArticle.source, 
+            func.count(NewsArticle.id)
+        ).group_by(NewsArticle.source).all()
         
-        # 頻出単語トップ10
-        word_stats = []
-        try:
-            top_words = ExtractedWordCRUD.get_frequent_words(db, 10)
-            word_stats = [{"word": w.word, "frequency": w.frequency, "type": w.word_type} for w in top_words]
-        except Exception as e:
-            print(f"単語統計エラー: {e}")
+        for source, count in sources:
+            source_stats[source or "不明"] = count
         
         # 最新記事
-        recent_stats = []
-        try:
-            recent_articles = NewsArticleCRUD.get_all(db, limit=5)
-            recent_stats = [
-                {
-                    "title": article.title[:50] + "..." if len(article.title) > 50 else article.title,
-                    "source": article.source,
-                    "created_at": article.created_at.strftime("%Y-%m-%d %H:%M")
-                } 
-                for article in recent_articles
-            ]
-        except Exception as e:
-            print(f"最新記事統計エラー: {e}")
+        recent_articles = db.query(NewsArticle).order_by(
+            NewsArticle.created_at.desc()
+        ).limit(5).all()
+        
+        recent_stats = [
+            {
+                "title": article.title[:50] + "..." if len(article.title) > 50 else article.title,
+                "source": article.source,
+                "created_at": article.created_at.strftime("%Y-%m-%d %H:%M")
+            } 
+            for article in recent_articles
+        ]
         
         return {
             "total_articles": total_articles,
             "total_words": total_words,
             "source_distribution": source_stats,
-            "top_words": word_stats,
-            "recent_articles": recent_stats
+            "recent_articles": recent_stats,
+            "status": "healthy" if total_articles > 0 else "empty"
         }
         
     except Exception as e:
-        print(f"統計取得エラー: {e}")
+        logger.error(f"統計取得エラー: {e}")
         raise HTTPException(status_code=500, detail=f"統計取得エラー: {str(e)}")
 
 
@@ -875,63 +817,6 @@ async def get_mecab_status():
             "status": "error",
             "message": f"MeCab確認エラー: {str(e)}",
             "mecab_available": False
-        }
-
-@app.post("/api/admin/repair-database")
-async def repair_database():
-    """データベース修復（テーブル再作成）"""
-    try:
-        from .database.connection import engine
-        from .database.models import Base
-        
-        # 全テーブルを削除して再作成
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.create_all(bind=engine)
-        
-        return {
-            "message": "データベースを修復しました（全テーブル再作成）",
-            "status": "success"
-        }
-    except Exception as e:
-        print(f"データベース修復エラー: {e}")
-        raise HTTPException(status_code=500, detail=f"データベース修復エラー: {str(e)}")
-
-
-@app.get("/api/admin/database-status")
-async def get_database_status(db: Session = Depends(get_db)):
-    """データベース状況確認"""
-    try:
-        status = {}
-        
-        # 各テーブルの存在確認
-        tables = ['news_articles', 'extracted_words', 'ogiri_topics', 'training_topics']
-        
-        for table in tables:
-            try:
-                if table == 'news_articles':
-                    count = db.query(NewsArticleModel).count()
-                elif table == 'extracted_words':
-                    count = db.query(ExtractedWord).count()
-                elif table == 'ogiri_topics':
-                    count = db.query(OgiriTopic).count()
-                elif table == 'training_topics':
-                    count = db.query(TrainingTopic).count()
-                
-                status[table] = {"exists": True, "count": count}
-                
-            except Exception as e:
-                status[table] = {"exists": False, "error": str(e)}
-        
-        return {
-            "database_status": status,
-            "overall_status": "healthy" if all(t["exists"] for t in status.values()) else "needs_repair"
-        }
-        
-    except Exception as e:
-        return {
-            "database_status": "error",
-            "error": str(e),
-            "overall_status": "error"
         }
 
 # app/database/crud.py の ExtractedWordCRUD に追加

@@ -1,14 +1,21 @@
 import requests
 from bs4 import BeautifulSoup
-import time
 from typing import Dict, List, Optional
-import aiohttp
-import asyncio
+from typing import Dict, List, Optional
 from datetime import datetime
-import re
 from urllib.parse import urljoin
+from dataclasses import dataclass
+from sqlalchemy.orm import Session
+from sqlalchemy import Column, Integer, String, Text, DateTime
+from app.database.database import Base  # 追加
+from app.models.news_article import NewsArticle
+from app.models.extracted_word import ExtractedWord
 import logging
-from dataclasses import dataclass  # この行を追加
+import ssl
+import aiohttp
+import re   # 追加
+import time # 追加
+import MeCab
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,76 +198,174 @@ class NHKNewsScraper:
         
         return sample_articles[:max_articles]
 
-async def collect_all_news(articles_per_site: int = 2) -> Dict:
+def extract_important_words(text: str) -> List[str]:
+    """テキストから重要な名詞を抽出"""
+    try:
+        # MeCabを安全な方法で初期化（chasenフォーマットを使わない）
+        tagger = MeCab.Tagger('')
+        nodes = tagger.parseToNode(text)
+        
+        words = []
+        while nodes:
+            if nodes.feature and nodes.feature.split(",")[0] == "名詞":
+                if len(nodes.surface) > 1:  # 1文字以上の単語のみ
+                    words.append(nodes.surface)
+            nodes = nodes.next
+        return words
+    except Exception as e:
+        logger.error(f"MeCab単語抽出エラー: {e}")
+        # MeCabが使用できない場合の簡易的な処理
+        return _simple_word_extraction(text)
+
+def _simple_word_extraction(text: str) -> List[str]:
+    """MeCabが使用できない場合の簡易的な単語抽出"""
+    import re
+    # 簡易的な日本語単語分割
+    words = re.findall(r'[ぁ-んァ-ヶ一-龯]+', text)
+    # 長さでフィルタリング
+    return [word for word in words if len(word) >= 2]
+
+async def save_article_with_words(db: Session, article: NewsArticle) -> bool:
+    """記事と抽出単語を保存"""
+    try:
+        # 記事の重複チェック
+        existing = db.query(NewsArticle).filter(
+            NewsArticle.url == article.url
+        ).first()
+        
+        if existing:
+            logger.info(f"重複記事をスキップ: {article.title[:30]}...")
+            return False
+            
+        # 記事を保存
+        db.add(article)
+        db.flush()  # IDを生成するためにflush
+        
+        # 重要な単語を抽出して保存
+        words = extract_important_words(article.content)
+        for word in words:
+            word_entry = ExtractedWord(
+                word=word,
+                source_article_id=article.id,
+                word_type="noun",
+                frequency=1
+            )
+            db.add(word_entry)
+        
+        db.commit()
+        logger.info(f"記事と{len(words)}個の単語を保存: {article.title[:30]}...")
+        return True
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"記事保存エラー: {e}")
+        return False
+
+# collect_all_news関数内で使用
+async def collect_all_news(articles_per_site: int = 2, db: Session = None) -> Dict:
     """全サイトからニュース記事を収集"""
     results = {
         'collected': 0,
         'saved': 0,
-        'sources': {}
+        'sources': {},
+        'articles': []
     }
     
-    news_sites = {
-        'IT Media': 'https://www.itmedia.co.jp/news/',
-        'CNET Japan': 'https://japan.cnet.com/',
-        'TechCrunch': 'https://jp.techcrunch.com/'
-    }
+    scrapers = [YahooNewsScraper(), NHKNewsScraper()]
     
-    async with aiohttp.ClientSession() as session:
-        for site_name, url in news_sites.items():
-            try:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        html = await response.text()
-                        soup = BeautifulSoup(html, 'lxml')
-                        
-                        # サイトごとの記事リンク取得ロジック
-                        articles = []
-                        if site_name == 'IT Media':
-                            articles = soup.select('.colBoxTitle a')[:articles_per_site]
-                        elif site_name == 'CNET Japan':
-                            articles = soup.select('.article_link')[:articles_per_site]
-                        elif site_name == 'TechCrunch':
-                            articles = soup.select('h2.post-block__title a')[:articles_per_site]
-                        
-                        results['collected'] += len(articles)
-                        results['sources'][site_name] = len(articles)
-                        
-            except Exception as e:
-                logger.error(f"Error collecting from {site_name}: {str(e)}")
-                continue
+    for scraper in scrapers:
+        try:
+            articles = scraper.scrape_articles(articles_per_site)
+            for article_data in articles:
+                results['collected'] += 1
+                
+                if db:
+                    article = NewsArticle(
+                        title=article_data.title,
+                        content=article_data.content,
+                        url=article_data.url,
+                        source=article_data.source
+                    )
+                    
+                    if await save_article_with_words(db, article):
+                        results['saved'] += 1
+                
+                results['articles'].append({
+                    'title': article_data.title,
+                    'content': article_data.content[:200] + '...',
+                    'url': article_data.url,
+                    'source': article_data.source
+                })
+            
+            results['sources'][scraper.source_name] = len(articles)
+            
+        except Exception as e:
+            logger.error(f"{scraper.source_name}からの記事収集エラー: {e}")
     
     return results
 
-class NewsArticle:
-    """ニュース記事データモデル"""
-    def __init__(self, title: str, content: str, url: str, source: str):
-        self.title = title
-        self.content = content
-        self.url = url
-        self.source = source
-        self.created_at = datetime.now()
-
 async def scrape_article(url: str, source: str) -> Optional[NewsArticle]:
     """個別記事のスクレイピング"""
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
+            async with session.get(url, ssl=ssl_context) as response:
                 if response.status == 200:
-                    html = await response.text()
-                    soup = BeautifulSoup(html, 'lxml')
+                    # エンコーディングを自動検出
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'charset=' in content_type:
+                        charset = content_type.split('charset=')[-1].lower()
+                    else:
+                        # IT Mediaは通常Shift-JISを使用
+                        charset = 'shift-jis' if 'itmedia.co.jp' in url else 'utf-8'
                     
-                    # サイトごとの記事コンテンツ取得ロジック
-                    title = soup.title.text if soup.title else ""
-                    content = ""
-                    
-                    if "itmedia.co.jp" in url:
-                        content = " ".join([p.text for p in soup.select('.inner')])
-                    elif "japan.cnet.com" in url:
-                        content = " ".join([p.text for p in soup.select('.article_body p')])
-                    elif "jp.techcrunch.com" in url:
-                        content = " ".join([p.text for p in soup.select('.article-content p')])
-                    
-                    return NewsArticle(title=title, content=content, url=url, source=source)
+                    try:
+                        html = await response.text(encoding=charset, errors='ignore')
+                        soup = BeautifulSoup(html, 'lxml')
+                        
+                        # サイトごとの記事コンテンツ取得ロジック
+                        title = soup.title.text.strip() if soup.title else ""
+                        content = ""
+                        
+                        if "itmedia.co.jp" in url:
+                            # IT Media用のセレクタを追加
+                            content_selectors = [
+                                '.inner',
+                                '#article-body',
+                                '.article-body',
+                                '.body'
+                            ]
+                            for selector in content_selectors:
+                                elements = soup.select(selector)
+                                if elements:
+                                    content = " ".join([p.text.strip() for p in elements])
+                                    break
+                                    
+                        elif "japan.cnet.com" in url:
+                            content = " ".join([p.text.strip() for p in soup.select('.article_body p')])
+                        elif "jp.techcrunch.com" in url:
+                            content = " ".join([p.text.strip() for p in soup.select('.article-content p')])
+                        
+                        # コンテンツの品質チェック
+                        if not content or len(content) < 50:
+                            logger.warning(f"Invalid content length for {url}")
+                            return None
+                        
+                        return NewsArticle(
+                            title=title,
+                            content=content,
+                            url=url,
+                            source=source
+                        )
+                    except Exception as e:
+                        logger.error(f"Error parsing content from {url}: {str(e)}")
+                        return None
+                else:
+                    logger.error(f"HTTP {response.status} for {url}")
+                    return None
     except Exception as e:
         logger.error(f"Error scraping article {url}: {str(e)}")
         return None

@@ -1,10 +1,13 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # データベースファイルのパス設定
-DATABASE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "database")
+DATABASE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
 DATABASE_FILE = os.path.join(DATABASE_DIR, "app.db")
 
 # データベースディレクトリが存在しない場合は作成
@@ -26,3 +29,13 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def init_database():
+    """データベースの初期化"""
+    try:
+        # モデルに基づいてテーブルを作成
+        Base.metadata.create_all(bind=engine)
+        logger.info("データベーステーブルを作成しました")
+    except Exception as e:
+        logger.error(f"データベース初期化エラー: {e}")
+        raise

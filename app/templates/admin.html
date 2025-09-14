@@ -280,8 +280,9 @@ async function checkDatabaseStatus() {
             addLog(`🏥 全体状況: ${result.overall_status}`, 
                    result.overall_status === 'healthy' ? 'success' : 'error');
             
-            if (result.database_status) {
-                Object.entries(result.database_status).forEach(([table, status]) => {
+            // result.tables を参照するように修正
+            if (result.tables) {
+                Object.entries(result.tables).forEach(([table, status]) => {
                     if (status.exists) {
                         addLog(`✅ ${table}: ${status.count}件`, 'success');
                     } else {
@@ -387,28 +388,40 @@ async function runFullPipelineAll() {
     addLog(`⚡ 完全パイプライン（全サイト）実行開始 - 各サイト${articlesPerSite}件`);
     
     try {
-        const formData = new URLSearchParams();
+        const formData = new FormData();
         formData.append('articles_per_site', articlesPerSite);
         
         const response = await fetch('/api/scraping/full-pipeline-all', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData
+            body: new URLSearchParams(formData)
         });
         
         const result = await response.json();
         
         if (response.ok) {
-            addLog(`✅ ${result.message}`, 'success');
-            addLog(`📰 記事: ${result.news_collection.saved}件の新記事`);
-            addLog(`🔤 単語: ${result.word_extraction.extracted_words}個抽出`);
-            loadStats();
-            loadWords();
+            addLog(`✅ パイプライン完了`, 'success');
+            
+            // レスポンス構造を安全に確認
+            if (result.news_collection && typeof result.news_collection === 'object') {
+                const collected = result.news_collection.collected || 0;
+                const saved = result.news_collection.saved || 0;
+                addLog(`📰 収集: ${collected}件, 保存: ${saved}件`, 'info');
+            } else {
+                addLog(`📰 結果: ${JSON.stringify(result)}`, 'info');
+            }
+            
+            if (result.word_extraction && typeof result.word_extraction === 'object') {
+                const extracted = result.word_extraction.total_words || 0;
+                addLog(`🔤 単語抽出: ${extracted}個`, 'info');
+            }
+            
+            await loadStats();
         } else {
-            addLog(`❌ エラー: ${result.detail}`, 'error');
+            addLog(`❌ エラー: ${result.detail || 'パイプライン実行失敗'}`, 'error');
         }
     } catch (error) {
-        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+        addLog(`❌ エラー: ${error.message}`, 'error');
     }
 }
 
@@ -585,19 +598,19 @@ async function loadStats() {
                 <div class="row mb-4">
                     <div class="col-md-3">
                         <div class="text-center">
-                            <h3 class="text-primary">${stats.total_articles}</h3>
+                            <h3 class="text-primary">${stats.articles.total}</h3>
                             <small>記事数</small>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
-                            <h3 class="text-success">${stats.total_words}</h3>
+                            <h3 class="text-success">${stats.words.total}</h3>
                             <small>抽出単語数</small>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <h5>ソース別統計</h5>
-                        ${Object.entries(stats.source_distribution).map(([source, count]) => 
+                        ${Object.entries(stats.articles.sources || {}).map(([source, count]) => 
                             `<span class="badge bg-info me-2">${source}: ${count}件</span>`
                         ).join('')}
                     </div>

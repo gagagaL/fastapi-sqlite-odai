@@ -1,73 +1,84 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
-from typing import List, Dict
-
+import logging
 from app.database.database import get_db
-from app.models.news_article import NewsArticle
-from app.scraping.news_scraper import collect_all_news, scrape_article
-from app.scraping.mecab_word_extractor import MeCabWordExtractor
+from app.scraping.news_scraper import collect_all_news
+from app.scraping.word_extractor import MeCabWordExtractor
+from app.database.crud import ExtractedWordCRUD, NewsArticleCRUD
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/scraping",
     tags=["scraping"]
 )
 
-@router.post("/full-pipeline-mecab")
-async def run_mecab_pipeline(
-    articles_per_site: int = 2,
+@router.post("/full-pipeline-all")
+async def run_full_pipeline(
+    articles_per_site: int = Form(20),
     db: Session = Depends(get_db)
 ):
-    """MeCabを使用した完全パイプライン"""
+    """記事収集と単語抽出を実行（全サイト）"""
     try:
-        # 1. ニュース記事収集
-        news_results = await collect_all_news(articles_per_site)
+        logger.info(f"全サイトから各{articles_per_site}件の記事収集を開始...")
+        results = await collect_all_news(articles_per_site, db)
         
-        # 2. MeCab初期化
-        extractor = MeCabWordExtractor()
-        
-        # 3. 収集した記事から単語抽出
-        word_results = []
-        for article in news_results.get("articles", []):
-            extracted = extractor.extract_words_mecab(article.content)
-            if "error" not in extracted:
-                word_results.append(extracted)
-        
-        return {
-            "message": "MeCabパイプライン完了",
-            "news_collection": news_results,
-            "word_extraction": {
-                "processed": len(word_results),
-                "words": word_results
+        if results['saved'] == 0:
+            return {
+                "status": "success",
+                "message": "新しい記事はありませんでした",
+                "collected": results['collected'],
+                "saved": 0,
+                "words": 0
             }
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"MeCabパイプラインエラー: {str(e)}")
 
-@router.get("/mecab-status")
-async def check_mecab_status():
-    """MeCabの状態確認"""
-    try:
+        # 単語抽出
         extractor = MeCabWordExtractor()
-        is_available = extractor.is_mecab_available()
+        total_words = 0
         
-        test_text = "これはテスト文章です。MeCabの動作を確認します。"
-        test_result = extractor.extract_words_mecab(test_text) if is_available else None
+        # 新規記事から単語を抽出
+        articles = NewsArticleCRUD.get_all(db, limit=results['saved'])
+        for article in articles:
+            nouns = extractor.extract_nouns(article.content)
+            for noun in nouns:
+                ExtractedWordCRUD.create_or_update(db, {
+                    'word': noun['word'],
+                    'category': noun['category'],
+                    'context': noun['context']
+                }, article.id)
+                total_words += 1
+
+        return {
+            "status": "success",
+            "message": "パイプライン完了",
+            "collected": results['collected'],
+            "saved": results['saved'],
+            "words": total_words,
+            "sources": results['sources']
+        }
+
+    except Exception as e:
+        logger.error(f"パイプラインエラー: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"パイプライン実行エラー: {str(e)}"
+        )
+
+@router.get("/stats")
+async def get_scraping_stats(db: Session = Depends(get_db)):
+    """スクレイピング状況を取得"""
+    try:
+        articles = NewsArticleCRUD.get_stats(db)
+        words = ExtractedWordCRUD.get_stats(db)
         
         return {
-            "status": "available" if is_available else "unavailable",
-            "test_extraction": test_result
+            "articles": articles,
+            "words": words,
+            "status": "healthy" if articles['total'] > 0 else "empty"
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"MeCab状態確認エラー: {str(e)}")
-
-@router.post("/full-pipeline-enhanced")
-async def run_enhanced_pipeline(
-    articles_per_site: int = 2,
-    db: Session = Depends(get_db)
-):
-    """拡張版（9サイト）完全パイプライン"""
-    try:
-        # 実装予定：9サイトからのスクレイピング
-        return {"message": "拡張パイプライン完了"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"拡張版パイプラインエラー: {str(e)}")
+        logger.error(f"統計取得エラー: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"統計取得エラー: {str(e)}"
+        )

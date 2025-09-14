@@ -1,45 +1,44 @@
 FROM python:3.11-slim
 
-WORKDIR /app
-
-# システムパッケージのインストール（MeCab追加）
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    python3-dev \
     mecab \
     libmecab-dev \
+    mecab-ipadic \
     mecab-ipadic-utf8 \
+    swig \
+    build-essential \
+    python3-pip \
+    git \
     curl \
-    xz-utils \
+    wget \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# NEologd辞書のインストール（オプション・高精度）
-RUN cd /tmp && \
-    curl -LO https://github.com/neologd/mecab-ipadic-neologd/archive/master.tar.gz && \
-    tar -xzf master.tar.gz && \
-    cd mecab-ipadic-neologd-master && \
-    ./bin/install-mecab-ipadic-neologd -n -y || echo "NEologd installation failed, using standard dictionary"
+# Configure MeCab
+ENV MECABRC /etc/mecabrc
+RUN echo "dicdir = /var/lib/mecab/dic/ipadic-utf8" > /etc/mecabrc
 
-# Pythonの依存関係をインストール
+WORKDIR /app
+
+# Install Python packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir wheel setuptools && \
+    pip install --no-cache-dir -r requirements.txt
 
-# 非rootユーザーを作成
-RUN groupadd -g 1000 appuser && \
-    useradd -r -u 1000 -g appuser appuser
+# Copy application code
+COPY . .
 
-# ディレクトリ作成（権限付与）
-RUN mkdir -p /app/data/database /app/logs && \
-    chown -R appuser:appuser /app
+# Create data directory
+RUN mkdir -p /app/data && chmod -R 777 /app/data
 
-# アプリケーションファイルをコピー
-COPY --chown=appuser:appuser app/ ./app/
+RUN mecab-config --dicdir
 
-# 非rootユーザーに切り替え
-USER appuser
+# Verify MeCab installation
+RUN python3 -c "import MeCab; tagger = MeCab.Tagger(''); print(tagger.parse('テスト'))"
 
-# ポートを公開
-EXPOSE 8000
-
-# アプリケーション起動
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
