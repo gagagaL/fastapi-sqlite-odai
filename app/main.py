@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from .database.connection import get_db, init_db
-from .database.crud import NewsArticleCRUD, ExtractedWordCRUD, OgiriTopicCRUD, TrainingTopicCRUD
-from .database.models import NewsArticle as NewsArticleModel, ExtractedWord, OgiriTopic, TrainingTopic
+from .database.crud import NewsArticleCRUD, ExtractedWordCRUD, OgiriTopicCRUD, TrainingTopicCRUD, DisplayWordCRUD
+from .database.models import NewsArticle as NewsArticleModel, ExtractedWord, OgiriTopic, TrainingTopic, DisplayWord
 from .config import get_settings
 from .scraping import YahooNewsScraper, NHKNewsScraper, TextProcessor, SimpleWordExtractor
 import os
@@ -449,3 +449,52 @@ async def get_scraping_stats(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"統計取得エラー: {e}")
         raise HTTPException(status_code=500, detail=f"統計取得エラー: {str(e)}")
+
+@app.get("/display")
+async def display_page(request: Request, db: Session = Depends(get_db)):
+    """単語表示ページ"""
+    words_obj = DisplayWordCRUD.get_all(db)
+    # オブジェクトをディクショナリに変換
+    words = [{"id": w.id, "word": w.word, "created_at": w.created_at.isoformat()} for w in words_obj]
+    return templates.TemplateResponse(
+        "display.html",
+        {
+            "request": request, 
+            "title": "単語表示",
+            "words": words
+        }
+    )
+
+# APIルートセクションに追加
+@app.get("/api/display/words")
+async def get_display_words(db: Session = Depends(get_db)):
+    """表示用単語の一覧を取得"""
+    words = DisplayWordCRUD.get_all(db)
+    return {
+        "words": [{"id": w.id, "word": w.word, "created_at": w.created_at.isoformat()} for w in words]
+    }
+
+@app.post("/api/display/words")
+async def create_display_word(word: str = Form(...), db: Session = Depends(get_db)):
+    """表示用単語を作成"""
+    if not word.strip():
+        raise HTTPException(status_code=400, detail="単語が空です")
+    
+    try:
+        display_word = DisplayWordCRUD.create(db, word.strip())
+        return {
+            "id": display_word.id,
+            "word": display_word.word,
+            "message": "単語を追加しました"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/display/words/{word_id}")
+async def delete_display_word(word_id: int, db: Session = Depends(get_db)):
+    """表示用単語を削除"""
+    success = DisplayWordCRUD.delete(db, word_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="指定された単語が見つかりません")
+    
+    return {"message": "単語を削除しました"}

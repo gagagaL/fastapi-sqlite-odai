@@ -55,3 +55,15 @@ class TrainingTopic(Base):
 
     def __repr__(self):
         return f"<TrainingTopic(id={self.id}, text='{self.topic_text[:30]}...')>"
+
+
+class DisplayWord(Base):
+    """表示用単語テーブル"""
+    __tablename__ = "display_words"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    word = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    def __repr__(self):
+        return f"<DisplayWord(id={self.id}, word='{self.word}')>"

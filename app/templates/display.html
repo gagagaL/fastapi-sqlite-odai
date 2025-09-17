@@ -1,0 +1,356 @@
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div id="bubble-container" class="border rounded p-0 bg-primary bg-opacity-10" style="height: 80vh; position: relative; overflow: hidden;">
+            <!-- ここに単語の泡が表示されます -->
+        </div>
+    </div>
+</div>
+
+<script>
+// 単語データを取得
+const initialWords = JSON.parse('{{ words|tojson|safe }}');
+let displayedWordIds = []; // 表示済みの単語IDを記録
+let activeBubbles = []; // アクティブな泡要素を管理
+const BUBBLE_MARGIN = 3; // 泡同士の最小マージン
+
+// 単語の泡を生成する関数
+function createBubbles() {
+    // 既存の単語を表示
+    initialWords.forEach(word => {
+        displayedWordIds.push(word.id);
+        createBubble(word.word);
+    });
+    
+    // 定期的に新しい単語を確認
+    setupPolling();
+    
+    // 衝突検出を開始
+    setInterval(checkCollisions, 50); // 高頻度で衝突検出
+}
+
+// すべての泡の衝突をチェック
+function checkCollisions() {
+    if (activeBubbles.length < 2) return;
+    
+    for (let i = 0; i < activeBubbles.length; i++) {
+        const bubble1 = activeBubbles[i];
+        if (bubble1.dataset.state === 'stopped') continue; // 停止中の泡はスキップ
+        
+        const rect1 = bubble1.getBoundingClientRect();
+        const container = document.getElementById('bubble-container');
+        const containerRect = container.getBoundingClientRect();
+        
+        // 画面上での実際の位置を計算
+        const bubble1Left = rect1.left - containerRect.left;
+        const bubble1Top = containerRect.height - (rect1.top - containerRect.top + rect1.height);
+        const bubble1Right = bubble1Left + rect1.width;
+        const bubble1Bottom = bubble1Top + rect1.height;
+        
+        // 他のすべての泡と衝突チェック
+        for (let j = 0; j < activeBubbles.length; j++) {
+            if (i === j) continue;
+            
+            const bubble2 = activeBubbles[j];
+            const rect2 = bubble2.getBoundingClientRect();
+            
+            const bubble2Left = rect2.left - containerRect.left;
+            const bubble2Top = containerRect.height - (rect2.top - containerRect.top + rect2.height);
+            const bubble2Right = bubble2Left + rect2.width;
+            const bubble2Bottom = bubble2Top + rect2.height;
+            
+            // マージンを考慮した衝突判定
+            if (
+                bubble1Right + BUBBLE_MARGIN > bubble2Left - BUBBLE_MARGIN && 
+                bubble1Left - BUBBLE_MARGIN < bubble2Right + BUBBLE_MARGIN && 
+                bubble1Bottom + BUBBLE_MARGIN > bubble2Top - BUBBLE_MARGIN && 
+                bubble1Top - BUBBLE_MARGIN < bubble2Bottom + BUBBLE_MARGIN
+            ) {
+                // 衝突発生時の処理
+                handleBubbleCollision(bubble1, bubble2);
+                break; // この泡については次へ
+            }
+        }
+    }
+}
+
+// 泡同士の衝突処理
+function handleBubbleCollision(bubble1, bubble2) {
+    // bubble1の位置と速度情報
+    const left1 = parseFloat(bubble1.style.left);
+    const bottom1 = parseFloat(bubble1.style.bottom);
+    const vx1 = parseFloat(bubble1.dataset.vx || 0);
+    const vy1 = parseFloat(bubble1.dataset.vy || 0);
+    
+    // bubble2の位置情報
+    const left2 = parseFloat(bubble2.style.left);
+    const bottom2 = parseFloat(bubble2.style.bottom);
+    
+    // 衝突角度を計算
+    const dx = left2 - left1;
+    const dy = bottom2 - bottom1;
+    const angle = Math.atan2(dy, dx);
+    
+    // 反発の強さ（弱く）
+    const repulsionStrength = 0.2; // 以前は3
+    
+    // 反発方向のベクトル（より小さな力で反発）
+    const newVx = -Math.cos(angle) * repulsionStrength;
+    const newVy = -Math.sin(angle) * repulsionStrength;
+    
+    // 泡1の新しい位置を計算（より小さな移動）
+    const newLeft = left1 + newVx * 1.5; // 以前は2
+    const newBottom = bottom1 + newVy * 1.5; // 以前は2
+    
+    // 移動先が容器内であることを確認
+    const container = document.getElementById('bubble-container');
+    const bubbleWidth = bubble1.offsetWidth;
+    const containerWidth = container.offsetWidth;
+    
+    // 範囲を制限
+    const boundedLeft = Math.max(0, Math.min(containerWidth - bubbleWidth, newLeft));
+    
+    // 新しい位置と速度を適用
+    bubble1.style.left = `${boundedLeft}px`;
+    bubble1.style.bottom = `${newBottom}px`;
+    bubble1.dataset.vx = newVx.toString();
+    bubble1.dataset.vy = newVy.toString();
+    
+    // 反発後の動きを継続（一時的に）
+    continueMovement(bubble1);
+}
+
+// 衝突後の動き
+function continueMovement(bubble) {
+    const startTime = Date.now();
+    const duration = 300; // 以前は500（動き続ける時間を短く）
+    const initialLeft = parseFloat(bubble.style.left);
+    const initialBottom = parseFloat(bubble.style.bottom);
+    const vx = parseFloat(bubble.dataset.vx);
+    const vy = parseFloat(bubble.dataset.vy);
+    
+    function moveFrame() {
+        const now = Date.now();
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // 減衰係数（より速く減衰）
+        const dampening = 1 - Math.pow(progress, 0.7); // より強い減衰
+        
+        // 現在の位置を計算（より小さな移動）
+        const currentLeft = initialLeft + vx * progress * 5 * dampening; // 以前は10
+        const currentBottom = initialBottom + vy * progress * 5 * dampening; // 以前は10
+        
+        // 位置を更新
+        bubble.style.left = `${currentLeft}px`;
+        bubble.style.bottom = `${currentBottom}px`;
+        
+        // 容器の端に到達したらバウンド
+        const container = document.getElementById('bubble-container');
+        const bubbleWidth = bubble.offsetWidth;
+        const containerWidth = container.offsetWidth;
+        
+        if (currentLeft <= 0 || currentLeft + bubbleWidth >= containerWidth) {
+            bubble.dataset.vx = (-vx * 0.5).toString(); // X方向反転（力を半減）
+        }
+        
+        if (progress < 1) {
+            requestAnimationFrame(moveFrame);
+        } else {
+            // 動きが終了したら速度をリセット
+            bubble.dataset.vx = "0";
+            bubble.dataset.vy = "0";
+        }
+    }
+    
+    requestAnimationFrame(moveFrame);
+}
+
+function createBubble(text) {
+    const container = document.getElementById('bubble-container');
+    const containerWidth = container.offsetWidth;
+    const containerHeight = container.offsetHeight;
+    
+    // 実際に表示する要素（a要素を使用）
+    const bubble = document.createElement('a');
+    bubble.className = 'word-bubble';
+    bubble.href = 'javascript:void(0);'; // クリック時の動作は無効化
+    bubble.textContent = text;
+    
+    // スタイル設定
+    bubble.style.position = 'absolute';
+    bubble.style.textDecoration = 'none';
+    bubble.style.display = 'inline-block';
+    bubble.style.padding = '8px 10px';
+    bubble.style.fontSize = '16px';
+    bubble.style.fontWeight = 'bold';
+    bubble.style.color = '#0d6efd';
+    bubble.style.textShadow = '0 0 5px rgba(255, 255, 255, 0.7)';
+    bubble.style.borderRadius = '20px';
+    
+    // 初期位置（画面外から）
+    const startX = Math.random() * (containerWidth - 100);
+    bubble.style.left = `${startX}px`;
+    bubble.style.bottom = '-50px';
+    
+    // 360度ランダムな角度で登場
+    const randomAngle = Math.random() * 360;
+    bubble.style.transform = `rotate(${randomAngle}deg)`;
+    
+    // データ属性を設定
+    bubble.dataset.state = 'rising'; // 上昇中
+    bubble.dataset.vx = "0";         // X方向速度
+    bubble.dataset.vy = "0";         // Y方向速度
+    
+    // 要素をDOMに追加
+    container.appendChild(bubble);
+    
+    // アクティブな泡リストに追加
+    activeBubbles.push(bubble);
+    
+    // アニメーション開始
+    animateBubble(bubble, startX, randomAngle);
+}
+
+function animateBubble(bubble, startX, initialAngle) {
+    const container = document.getElementById('bubble-container');
+    const containerHeight = container.offsetHeight;
+    const containerWidth = container.offsetWidth;
+    
+    // アニメーションパラメータ
+    const duration = 7000 + Math.random() * 3000;
+    const swayRange = 15;
+    const startTime = Date.now();
+    const endY = containerHeight - 40; // 到達目標位置
+    
+    function frame() {
+        const now = Date.now();
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // アニメーション状態をチェック
+        if (bubble.dataset.state !== 'rising') {
+            // 他の状態（衝突反発中など）ならアニメーション停止
+            return;
+        }
+        
+        // 一定速度で上昇
+        const currentY = progress * endY;
+        
+        // 左右の揺れ
+        const swayX = Math.sin(progress * Math.PI * 3) * swayRange;
+        
+        // 角度変化（初期角度から少し揺れる）
+        const angleVariation = Math.sin(progress * Math.PI * 2) * 5;
+        const currentAngle = initialAngle + angleVariation;
+        
+        // 位置とスタイルを適用
+        bubble.style.bottom = `${currentY}px`;
+        bubble.style.left = `${startX + swayX}px`;
+        bubble.style.transform = `rotate(${currentAngle}deg)`;
+        
+        // 上部に到達したら天井バウンド
+        if (progress === 1) {
+            bubble.dataset.state = 'ceiling';
+            ceilingBounce(bubble);
+            return;
+        }
+        
+        // 次のフレーム
+        requestAnimationFrame(frame);
+    }
+    
+    // アニメーション開始
+    requestAnimationFrame(frame);
+}
+
+function ceilingBounce(bubble) {
+    const startTime = Date.now();
+    const duration = 800;
+    const bounceHeight = 5; // 非常に小さいバウンド
+    
+    const initialBottom = parseFloat(bubble.style.bottom);
+    const initialLeft = parseFloat(bubble.style.left);
+    const initialAngle = getRotationAngle(bubble);
+    
+    function bounceFrame() {
+        const now = Date.now();
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // イージング（より緩やかに）
+        const easedProgress = 1 - Math.pow(1 - progress, 2);
+        
+        // 真下方向の小さなバウンド
+        const bounceY = Math.sin(Math.PI * easedProgress) * bounceHeight;
+        
+        // バウンド適用
+        bubble.style.bottom = `${initialBottom - bounceY}px`;
+        
+        // 非常に軽い角度変化
+        const angleChange = Math.sin(Math.PI * easedProgress) * 2;
+        bubble.style.transform = `rotate(${initialAngle + angleChange}deg)`;
+        
+        if (progress < 1) {
+            requestAnimationFrame(bounceFrame);
+        } else {
+            // バウンド完了、停止状態へ
+            bubble.dataset.state = 'stopped';
+            bubble.style.bottom = `${initialBottom}px`;
+            bubble.style.transform = `rotate(${initialAngle}deg)`;
+        }
+    }
+    
+    requestAnimationFrame(bounceFrame);
+}
+
+// 要素の回転角度を取得するヘルパー関数
+function getRotationAngle(element) {
+    const style = window.getComputedStyle(element);
+    const transform = style.getPropertyValue('transform');
+    
+    if (transform === 'none') return 0;
+    
+    const values = transform.split('(')[1].split(')')[0].split(',');
+    const a = values[0];
+    const b = values[1];
+    const angle = Math.round(Math.atan2(b, a) * (180/Math.PI));
+    
+    return angle;
+}
+
+// ポーリングによるリアルタイム更新
+function setupPolling() {
+    setInterval(fetchNewWords, 1000);
+}
+
+// 新しい単語を取得
+async function fetchNewWords() {
+    try {
+        const response = await fetch('/api/display/words');
+        const data = await response.json();
+        
+        // 新しい単語があれば追加
+        if (data.words && data.words.length > 0) {
+            data.words.forEach(word => {
+                // まだ表示されていない単語のみ表示
+                if (!displayedWordIds.includes(word.id)) {
+                    displayedWordIds.push(word.id);
+                    // 0.5秒間隔で順に表示
+                    setTimeout(() => {
+                        createBubble(word.word);
+                    }, displayedWordIds.indexOf(word.id) * 500);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching new words:', error);
+    }
+}
+
+// ページ読み込み時に実行
+document.addEventListener('DOMContentLoaded', function() {
+    createBubbles();
+});
+</script>
+{% endblock %}

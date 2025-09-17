@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
-from .models import NewsArticle, ExtractedWord, OgiriTopic, TrainingTopic
+from .models import NewsArticle, ExtractedWord, OgiriTopic, TrainingTopic, DisplayWord
 from typing import List, Optional
 import json
 
@@ -119,3 +119,28 @@ class TrainingTopicCRUD:
         db.add_all(topics)
         db.commit()
         return topics
+
+class DisplayWordCRUD:
+    @staticmethod
+    def create(db: Session, word: str):
+        """表示用単語を作成"""
+        display_word = DisplayWord(word=word)
+        db.add(display_word)
+        db.commit()
+        db.refresh(display_word)
+        return display_word
+    
+    @staticmethod
+    def get_all(db: Session) -> List[DisplayWord]:
+        """全表示用単語を取得"""
+        return db.query(DisplayWord).order_by(desc(DisplayWord.created_at)).all()
+    
+    @staticmethod
+    def delete(db: Session, word_id: int) -> bool:
+        """表示用単語を削除"""
+        word = db.query(DisplayWord).filter(DisplayWord.id == word_id).first()
+        if word:
+            db.delete(word)
+            db.commit()
+            return True
+        return False
