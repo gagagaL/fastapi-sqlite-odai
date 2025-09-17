@@ -109,11 +109,258 @@
             </div>
         </div>
     </div>
+    <!-- 大喜利お題生成 -->
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mt-8">
+    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">🎭 大喜利お題ジェネレーター</h2>
+    </div>
+    <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- モデル学習 -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">マルコフモデル学習</h3>
+                <div class="space-y-4">
+                    <div class="border border-gray-300 rounded-lg p-4">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                お題テキストファイル（1行に1つのお題）
+                            </label>
+                            <input type="file" id="odaiFile" class="w-full mb-4 p-2 border border-gray-300 rounded-lg" accept=".txt">
+                            <button type="button" onclick="trainMarkovModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                マルコフモデルを学習
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- お題生成設定 -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">お題生成設定</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">生成数</label>
+                        <input type="number" id="odaiCount" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="30" min="1" max="100">
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="useWords" class="h-4 w-4 text-primary-600 border-gray-300 rounded" checked>
+                        <label for="useWords" class="ml-2 text-sm text-gray-700">
+                            抽出単語をシードに使用
+                        </label>
+                    </div>
+                    <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                        🎲 お題を生成
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 生成結果 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">生成結果</h3>
+            <div id="generatedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <p class="text-gray-500">お題を生成するとここに表示されます</p>
+            </div>
+            
+            <div class="mt-4 flex justify-end">
+                <button onclick="saveGeneratedOdai()" id="saveOdaiButton" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md hidden">
+                    💾 お題を保存
+                </button>
+            </div>
+        </div>
+        
+        <!-- 保存済みお題 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">保存済みお題</h3>
+            <div id="savedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <div class="text-center py-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">お題を読み込み中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
 let currentPage = 1;
 const perPage = 20;
+let generatedOdaiList = [];
+
+// マルコフモデルを学習
+async function trainMarkovModel() {
+    const fileInput = document.getElementById('odaiFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        addLog('❌ ファイルを選択してください', 'error');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    addLog('🔄 マルコフモデルを学習中...');
+    
+    try {
+        const response = await fetch('/api/odai/train', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📊 ${result.model_states}状態, ${result.start_states}開始状態`, 'info');
+        } else {
+            addLog(`❌ 学習エラー: ${result.error || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// お題を生成
+async function generateOdai() {
+    const count = document.getElementById('odaiCount').value;
+    const useWords = document.getElementById('useWords').checked;
+    
+    const formData = new FormData();
+    formData.append('count', count);
+    formData.append('use_words', useWords);
+    
+    addLog(`🎲 ${count}個のお題を生成中...`);
+    
+    try {
+        const response = await fetch('/api/odai/generate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            addLog(`✅ ${result.message}`, 'success');
+            
+            // 生成結果を表示
+            generatedOdaiList = result.odai_list;
+            displayGeneratedOdai(result.odai_list, result.seed_words_used);
+            
+            // 保存ボタンを表示
+            document.getElementById('saveOdaiButton').classList.remove('hidden');
+        } else {
+            addLog(`❌ 生成エラー: ${result.error || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 生成されたお題を表示
+function displayGeneratedOdai(odaiList, seedWords) {
+    const odaiArea = document.getElementById('generatedOdaiArea');
+    
+    let html = '';
+    
+    if (seedWords && seedWords.length > 0) {
+        html += '<div class="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">';
+        html += '<p class="text-sm text-blue-700 font-medium">使用した単語: ';
+        html += seedWords.map(word => `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full mr-1 mb-1">${word}</span>`).join('');
+        html += '</p></div>';
+    }
+    
+    html += '<div class="space-y-2">';
+    
+    odaiList.forEach((odai, index) => {
+        html += `
+            <div class="p-3 border border-gray-200 hover:bg-gray-50 rounded-lg">
+                <div class="flex items-start">
+                    <span class="text-gray-500 mr-2">${index + 1}.</span>
+                    <p class="text-gray-900">${odai}</p>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    odaiArea.innerHTML = html;
+}
+
+// 生成されたお題を保存
+async function saveGeneratedOdai() {
+    if (generatedOdaiList.length === 0) {
+        addLog('⚠️ 保存するお題がありません', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    generatedOdaiList.forEach(odai => {
+        formData.append('odai_list', odai);
+    });
+    
+    addLog(`💾 ${generatedOdaiList.length}個のお題を保存中...`);
+    
+    try {
+        const response = await fetch('/api/odai/save', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            addLog(`✅ ${result.message}`, 'success');
+            loadSavedOdai();
+        } else {
+            addLog(`❌ 保存エラー: ${result.error || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 保存済みのお題を読み込み
+async function loadSavedOdai() {
+    const odaiArea = document.getElementById('savedOdaiArea');
+    
+    try {
+        const response = await fetch('/api/odai/list');
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            if (result.topics.length === 0) {
+                odaiArea.innerHTML = '<p class="text-gray-500 text-center py-4">保存されたお題はありません</p>';
+                return;
+            }
+            
+            let html = '<div class="space-y-2">';
+            
+            result.topics.forEach((topic, index) => {
+                html += `
+                    <div class="p-3 border border-gray-200 hover:bg-gray-50 rounded-lg">
+                        <div class="flex items-start">
+                            <span class="text-gray-500 mr-2">${index + 1}.</span>
+                            <div>
+                                <p class="text-gray-900">${topic.content}</p>
+                                <p class="text-xs text-gray-500 mt-1">${topic.created_at}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            odaiArea.innerHTML = html;
+        } else {
+            odaiArea.innerHTML = '<p class="text-red-500 text-center py-4">お題の読み込みに失敗しました</p>';
+        }
+    } catch (error) {
+        odaiArea.innerHTML = '<p class="text-red-500 text-center py-4">通信エラーが発生しました</p>';
+    }
+}
+
 
 // ログ出力関数
 function addLog(message, type = 'info') {
@@ -250,11 +497,11 @@ async function loadWords(page = 1, search = null) {
             currentPage = page;
         } else {
             document.getElementById('wordsArea').innerHTML = 
-                '<div class="alert alert-warning">単語の読み込みに失敗しました</div>';
+                '<div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-center">単語の読み込みに失敗しました</div>';
         }
     } catch (error) {
         document.getElementById('wordsArea').innerHTML = 
-            '<div class="alert alert-danger">単語の読み込みでエラーが発生しました</div>';
+            '<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">単語の読み込みでエラーが発生しました</div>';
     }
 }
 
@@ -262,66 +509,71 @@ async function loadWords(page = 1, search = null) {
 function displayWords(words) {
     if (!words || words.length === 0) {
         document.getElementById('wordsArea').innerHTML = 
-            '<div class="alert alert-info">単語が見つかりませんでした</div>';
+            '<div class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-center">単語が見つかりませんでした</div>';
         return;
     }
     
     const wordsHTML = `
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>単語</th>
-                        <th>分類</th>
-                        <th>頻度</th>
-                        <th>重要度</th>
-                        <th>記事</th>
-                        <th>出現文脈</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${words.map(word => `
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
                         <tr>
-                            <td>
-                                <span class="fw-bold text-primary">${word.word}</span>
-                            </td>
-                            <td>
-                                <span class="badge bg-secondary">${getWordTypeLabel(word.word_type)}</span>
-                            </td>
-                            <td>
-                                <span class="badge bg-info">${word.frequency}</span>
-                            </td>
-                            <td>
-                                <div class="progress" style="width: 60px;">
-                                    <div class="progress-bar" role="progressbar" 
-                                         style="width: ${word.importance_score * 100}%"
-                                         title="${word.importance_score}">
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <a href="${word.article_url}" target="_blank" 
-                                   class="text-decoration-none" title="${word.article_title}">
-                                    <small>
-                                        ${word.article_title.length > 30 ? 
-                                          word.article_title.substring(0, 30) + '...' : 
-                                          word.article_title}
-                                    </small>
-                                    <br>
-                                    <span class="badge bg-light text-dark">${word.article_source}</span>
-                                </a>
-                            </td>
-                            <td>
-                                <small class="text-muted" title="${word.context}">
-                                    ${word.context ? 
-                                      (word.context.length > 50 ? word.context.substring(0, 50) + '...' : word.context) : 
-                                      ''}
-                                </small>
-                            </td>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">単語</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分類</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">頻度</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">記事</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">出現文脈</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${words.map(word => `
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-semibold text-gray-900">${word.word}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                                        ${getWordTypeLabel(word.word_type)}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                        ${word.frequency}回
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-900">
+                                        <a href="${word.article_url || '#'}" target="_blank" 
+                                           class="text-primary-600 hover:text-primary-800 hover:underline block truncate max-w-xs" 
+                                           title="${word.article_title || 'タイトル不明'}">
+                                            ${word.article_title ? 
+                                              (word.article_title.length > 40 ? 
+                                                word.article_title.substring(0, 40) + '...' : 
+                                                word.article_title) : 
+                                              'タイトル不明'}
+                                        </a>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                                                ${word.article_source || 'ソース不明'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-700 max-w-xs">
+                                        ${word.context ? 
+                                          (word.context.length > 60 ? 
+                                            word.context.substring(0, 60) + '...' : 
+                                            word.context) : 
+                                          '<span class="text-gray-400">文脈なし</span>'}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
     
@@ -346,33 +598,66 @@ function displayPagination(currentPage, totalPages, search) {
         return;
     }
     
-    let paginationHTML = '<ul class="pagination pagination-sm justify-content-center">';
+    let paginationHTML = '<div class="flex justify-center items-center space-x-2">';
     
     // 前のページ
     if (currentPage > 1) {
-        paginationHTML += `<li class="page-item">
-            <a class="page-link" href="#" onclick="loadWords(${currentPage - 1}, '${search || ''}')">前</a>
-        </li>`;
+        paginationHTML += `
+            <button onclick="loadWords(${currentPage - 1}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                前
+            </button>`;
     }
     
     // ページ番号
     const startPage = Math.max(1, currentPage - 2);
     const endPage = Math.min(totalPages, currentPage + 2);
     
+    // 最初のページ
+    if (startPage > 1) {
+        paginationHTML += `
+            <button onclick="loadWords(1, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                1
+            </button>`;
+        if (startPage > 2) {
+            paginationHTML += '<span class="px-2 text-gray-500">...</span>';
+        }
+    }
+    
     for (let i = startPage; i <= endPage; i++) {
-        paginationHTML += `<li class="page-item ${i === currentPage ? 'active' : ''}">
-            <a class="page-link" href="#" onclick="loadWords(${i}, '${search || ''}')">${i}</a>
-        </li>`;
+        paginationHTML += `
+            <button onclick="loadWords(${i}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium ${i === currentPage ? 
+                        'text-white bg-primary-600 border-primary-600' : 
+                        'text-gray-500 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                    } border rounded-lg transition-colors">
+                ${i}
+            </button>`;
+    }
+    
+    // 最後のページ
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHTML += '<span class="px-2 text-gray-500">...</span>';
+        }
+        paginationHTML += `
+            <button onclick="loadWords(${totalPages}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                ${totalPages}
+            </button>`;
     }
     
     // 次のページ
     if (currentPage < totalPages) {
-        paginationHTML += `<li class="page-item">
-            <a class="page-link" href="#" onclick="loadWords(${currentPage + 1}, '${search || ''}')">次</a>
-        </li>`;
+        paginationHTML += `
+            <button onclick="loadWords(${currentPage + 1}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                次
+            </button>`;
     }
     
-    paginationHTML += '</ul>';
+    paginationHTML += '</div>';
     document.getElementById('wordsPagination').innerHTML = paginationHTML;
 }
 
@@ -390,6 +675,12 @@ async function searchWords() {
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadWords();
+    const existingInit = window.onload || function(){};
+    
+    window.onload = function() {
+        existingInit();
+        loadSavedOdai();
+    };
     
     // 検索ボックスでEnterキー対応
     const searchInput = document.getElementById('wordSearch');

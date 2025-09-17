@@ -192,6 +192,9 @@ class MeCabWordExtractor:
         # 記号・数字のみは除外
         if re.match(r'^[^\w\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]+$', word):
             return False
+
+        if re.match(r'^[0-9１２３４５６７８９０]$', word):
+            return False
         
         return True
     

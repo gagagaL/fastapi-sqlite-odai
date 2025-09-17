@@ -11,6 +11,10 @@ from sqlalchemy import func
 from fastapi import HTTPException
 from app.models.news_article import NewsArticle
 from app.models.extracted_word import ExtractedWord
+from app.api import scraping, admin, words, odai_generator
+import pickle
+import MeCab
+import random
 
 # ロギング設定
 logging.basicConfig(level=logging.INFO)
@@ -45,6 +49,7 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(scraping.router)
 app.include_router(admin.router)
 app.include_router(words.router)
+app.include_router(odai_generator.router)  # 追加
 
 
 @app.get("/")
