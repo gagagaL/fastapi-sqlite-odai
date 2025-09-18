@@ -122,9 +122,9 @@ class TrainingTopicCRUD:
 
 class DisplayWordCRUD:
     @staticmethod
-    def create(db: Session, word: str):
+    def create(db: Session, word: str, pos: str = None):
         """表示用単語を作成"""
-        display_word = DisplayWord(word=word)
+        display_word = DisplayWord(word=word, pos=pos)
         db.add(display_word)
         db.commit()
         db.refresh(display_word)

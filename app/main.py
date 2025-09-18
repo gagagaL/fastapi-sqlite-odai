@@ -7,8 +7,73 @@ from .database.connection import get_db, init_db
 from .database.crud import NewsArticleCRUD, ExtractedWordCRUD, OgiriTopicCRUD, TrainingTopicCRUD, DisplayWordCRUD
 from .database.models import NewsArticle as NewsArticleModel, ExtractedWord, OgiriTopic, TrainingTopic, DisplayWord
 from .config import get_settings
-from .scraping import YahooNewsScraper, NHKNewsScraper, TextProcessor, SimpleWordExtractor
+from .scraping import YahooNewsScraper, NHKNewsScraper, MeCabWordExtractor
 import os
+import re
+import MeCab
+import json, random, os
+from fastapi import UploadFile, File
+from sqlalchemy import text
+from collections import defaultdict
+
+
+MARKOV_PATH = "app/data/markov_model.json"
+os.makedirs("app/data", exist_ok=True)
+
+class MarkovModel:
+    def __init__(self):
+        self.chain = {}  # (c1,c2) -> [c3,...]
+
+    def train_lines(self, lines: list[str]):
+        for line in lines:
+            text = (line or "").strip()
+            if not text:
+                continue
+            s = f"^{text}$"  # 開始・終了マーカー
+            for i in range(len(s) - 2):
+                key = (s[i], s[i+1])
+                nxt = s[i+2]
+                self.chain.setdefault(key, []).append(nxt)
+
+    def generate(self, seed_chars: str | None = None, max_len: int = 60) -> str:
+        if not self.chain:
+            return ""
+        # 開始
+        if seed_chars and len(seed_chars) >= 2:
+            key = (seed_chars[0], seed_chars[1])
+            if key not in self.chain:
+                key = random.choice(list(self.chain.keys()))
+        else:
+            key = random.choice(list(self.chain.keys()))
+        out = [key[0], key[1]]
+        for _ in range(max_len):
+            nxts = self.chain.get(key)
+            if not nxts:
+                break
+            nxt = random.choice(nxts)
+            out.append(nxt)
+            if nxt == "$":
+                break
+            key = (key[1], nxt)
+        s = "".join(out)
+        return s.strip("^$")
+
+    def dump(self, path: str):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"/".join(k): v for k, v in self.chain.items()}, f, ensure_ascii=False)
+
+    def load(self, path: str):
+        if not os.path.exists(path):
+            return
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.chain = {}
+        for k, v in data.items():
+            c1, c2 = k.split("/")
+            self.chain[(c1, c2)] = v
+
+markov = MarkovModel()
+markov.load(MARKOV_PATH)
 
 # 設定読み込み
 settings = get_settings()
@@ -31,7 +96,7 @@ templates = Jinja2Templates(directory="app/templates")
 @app.on_event("startup")
 async def startup_event():
     """アプリケーション起動時の処理"""
-    await init_db()
+    init_db()  # awaitを外す
     print(f"🚀 {settings.app_name} が起動しました！")
     print(f"📖 API仕様: http://localhost:8000/docs")
 
@@ -153,22 +218,6 @@ async def get_random_topic(db: Session = Depends(get_db)):
         print(f"ランダムお題取得エラー: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/topics")
-async def create_topic(topic_text: str, db: Session = Depends(get_db)):
-    """お題作成API"""
-    if not topic_text.strip():
-        raise HTTPException(status_code=400, detail="お題テキストが空です")
-    
-    try:
-        topic = OgiriTopicCRUD.create(db, topic_text.strip())
-        return {
-            "id": topic.id,
-            "topic_text": topic.topic_text,
-            "message": "お題を作成しました"
-        }
-    except Exception as e:
-        print(f"お題作成エラー: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================
 # テスト用のデータ投入API
@@ -226,6 +275,23 @@ async def init_sample_data(db: Session = Depends(get_db)):
     except Exception as e:
         print(f"サンプルデータ投入エラー: {e}")
         return {"message": f"エラーが発生しましたが一部は投入されました: {str(e)}"}
+
+@app.post("/api/topics")
+async def create_topic(topic_text: str, db: Session = Depends(get_db)):
+    """お題作成API"""
+    if not topic_text.strip():
+        raise HTTPException(status_code=400, detail="お題テキストが空です")
+    
+    try:
+        topic = OgiriTopicCRUD.create(db, topic_text.strip())
+        return {
+            "id": topic.id,
+            "topic_text": topic.topic_text,
+            "message": "お題を作成しました"
+        }
+    except Exception as e:
+        print(f"お題作成エラー: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
@@ -306,7 +372,7 @@ async def extract_words_from_articles(
         
         # テキスト処理と単語抽出
         processor = TextProcessor()
-        extractor = SimpleWordExtractor()
+        extractor = MeCabWordExtractor()
         
         extracted_count = 0
         all_words = []
@@ -455,7 +521,7 @@ async def display_page(request: Request, db: Session = Depends(get_db)):
     """単語表示ページ"""
     words_obj = DisplayWordCRUD.get_all(db)
     # オブジェクトをディクショナリに変換
-    words = [{"id": w.id, "word": w.word, "created_at": w.created_at.isoformat()} for w in words_obj]
+    words = [{"id": w.id, "word": w.word, "pos": w.pos, "created_at": w.created_at.isoformat()} for w in words_obj]
     return templates.TemplateResponse(
         "display.html",
         {
@@ -471,7 +537,7 @@ async def get_display_words(db: Session = Depends(get_db)):
     """表示用単語の一覧を取得"""
     words = DisplayWordCRUD.get_all(db)
     return {
-        "words": [{"id": w.id, "word": w.word, "created_at": w.created_at.isoformat()} for w in words]
+        "words": [{"id": w.id, "word": w.word, "pos": w.pos, "created_at": w.created_at.isoformat()} for w in words]
     }
 
 @app.post("/api/display/words")
@@ -498,3 +564,280 @@ async def delete_display_word(word_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="指定された単語が見つかりません")
     
     return {"message": "単語を削除しました"}
+
+@app.post("/api/display/sentence")
+async def create_display_words_from_sentence(sentence: str = Form(...), db: Session = Depends(get_db)):
+    if not sentence.strip():
+        raise HTTPException(status_code=400, detail="文章が空です")
+    try:
+        import re, MeCab
+        tagger = MeCab.Tagger("")
+        node = tagger.parseToNode(sentence)
+
+        target_heads = {"名詞","動詞","形容詞","形容動詞","形容動詞語幹","副詞"}
+        allow_re = re.compile(r"^[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\u3400-\u4DBF\uFF10-\uFF19A-Za-z0-9ー\-]+$")
+
+        picked = []
+        while node:
+            surface = (node.surface or "").strip()  # ← 必ず元表記
+            feat = node.feature or ""
+            head = feat.split(",")[0] if feat else ""
+            if head in target_heads and surface and allow_re.match(surface):
+                exists = db.query(DisplayWord).filter(
+                    DisplayWord.word == surface,
+                    DisplayWord.pos == head
+                ).first()
+                if not exists:
+                    DisplayWordCRUD.create(db, word=surface, pos=head)
+                picked.append({"word": surface, "pos": head})
+            node = node.next
+
+        if not picked:
+            raise HTTPException(status_code=400, detail="対象品詞が抽出されませんでした")
+
+        return {"nouns": [it["word"] for it in picked], "words": picked, "message": "品詞付きで抽出・追加しました"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 先頭付近（既存のMarkovModelの代わりに）に追加
+import json, os, random
+import MeCab
+
+TOK_MARKOV_PATH = "app/data/markov_token_model.json"
+os.makedirs("app/data", exist_ok=True)
+
+class TokenMarkovModel:
+    def __init__(self):
+        self.chain = {}  # (t1, t2) -> [t3,...]
+        self.tagger = MeCab.Tagger("")
+
+    def tokenize(self, text: str) -> list[str]:
+        node = self.tagger.parseToNode(text or "")
+        toks = []
+        while node:
+            s = (node.surface or "").strip()
+            if s:
+                toks.append(s)
+            node = node.next
+        return toks
+
+    def train_lines(self, lines: list[str]):
+        for line in lines:
+            toks = self.tokenize(line.strip())
+            if not toks:
+                continue
+            # BOS/BOS で開始、EOS で終了（トークン連鎖）
+            seq = ["<BOS>", "<BOS>"] + toks + ["<EOS>"]
+            for i in range(len(seq) - 2):
+                key = (seq[i], seq[i+1])
+                nxt = seq[i+2]
+                self.chain.setdefault(key, []).append(nxt)
+
+    def generate(self, seed_tokens: list[str] | None = None, max_len: int = 60) -> str:
+        if not self.chain:
+            return ""
+        # 開始
+        if seed_tokens and len(seed_tokens) >= 2:
+            key = (seed_tokens[0], seed_tokens[1])
+            if key not in self.chain:
+                key = random.choice(list(self.chain.keys()))
+        else:
+            key = random.choice(list(self.chain.keys()))
+        out = [key[0], key[1]]
+        for _ in range(max_len):
+            nxts = self.chain.get(key)
+            if not nxts:
+                break
+            nxt = random.choice(nxts)
+            out.append(nxt)
+            if nxt == "$":
+                break
+            key = (key[1], nxt)
+        s = "".join(out)
+        return s.strip("^$")
+
+    def dump(self, path: str):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"\t".join(k): v for k, v in self.chain.items()}, f, ensure_ascii=False)
+
+    def load(self, path: str):
+        if not os.path.exists(path):
+            return
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.chain = {}
+        for k, v in data.items():
+            t1, t2 = k.split("\t")
+            self.chain[(t1, t2)] = v
+
+token_markov = TokenMarkovModel()
+token_markov.load(TOK_MARKOV_PATH)
+
+# 先頭付近（既存のトークンMarkovを置換）
+import json, os, random, MeCab, re
+from collections import defaultdict
+
+POS_MODEL_PATH = "app/data/markov_pos_model.json"
+os.makedirs("app/data", exist_ok=True)
+
+# 出力を弱めるPOS（連鎖には使うが、文面には極力出さない）
+WEAK_OUTPUT_POS = {"助詞", "助動詞", "記号"}
+
+# 文末判定
+SENT_END_RE = re.compile(r"[。．.!！?？]$")
+
+class POSMarkovModel:
+    # chain_pos: (pos1,pos2) -> [pos3,...]
+    # emit: pos -> [surface,...]
+    def __init__(self):
+        self.chain_pos = defaultdict(list)
+        self.emit = defaultdict(list)
+        self.tagger = MeCab.Tagger("")
+
+    def _morphs(self, text: str):
+        node = self.tagger.parseToNode(text or "")
+        while node:
+            surface = (node.surface or "").strip()
+            feat = node.feature or ""
+            if surface and feat:
+                pos = feat.split(",")[0]
+                yield surface, pos
+            node = node.next
+
+    def train_lines(self, lines: list[str]):
+        for line in lines:
+            toks = list(self._morphs(line.strip()))
+            if not toks:
+                continue
+            pos_seq = ["<BOS>", "<BOS>"] + [p for _, p in toks] + ["<EOS>"]
+            for i in range(len(pos_seq)-2):
+                key = (pos_seq[i], pos_seq[i+1])
+                self.chain_pos[key].append(pos_seq[i+2])
+            for surf, pos in toks:
+                self.emit[pos].append(surf)
+
+    def _sample(self, arr):
+        return random.choice(arr) if arr else None
+
+    def generate(self, seed_tokens: list[tuple[str,str]]|None=None, max_steps: int = 60) -> str:
+        # 初期キー（POS二連）
+        if seed_tokens and len(seed_tokens) >= 2:
+            p1, p2 = seed_tokens[0][1], seed_tokens[1][1]
+            key = (p1, p2)
+            if key not in self.chain_pos:
+                key = self._sample(list(self.chain_pos.keys()))
+        else:
+            key = self._sample(list(self.chain_pos.keys()))
+        if not key:
+            return ""
+
+        out_surfaces = []
+        steps = 0
+        while steps < max_steps:
+            steps += 1
+            nxt_pos = self._sample(self.chain_pos.get(key, []))
+            if not nxt_pos or nxt_pos == "<EOS>":
+                break
+            # 出力語のサンプリング（弱い品詞は低確率で出す）
+            cand = self.emit.get(nxt_pos, [])
+            if not cand:
+                # エミッションが無いPOSはスキップ
+                key = (key[1], nxt_pos)
+                continue
+            surface = self._sample(cand)
+            if nxt_pos in WEAK_OUTPUT_POS:
+                # 20%だけ出力（つなぎとして最小限）
+                if random.random() < 0.2:
+                    out_surfaces.append(surface)
+            else:
+                out_surfaces.append(surface)
+
+            # 句点等で文を締める
+            if SENT_END_RE.search(surface):
+                break
+
+            key = (key[1], nxt_pos)
+
+        # スペース不要（単純連結）
+        return "".join(out_surfaces).strip()
+
+    def dump(self, path: str):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({
+                "chain_pos": { "\t".join(k): v for k, v in self.chain_pos.items() },
+                "emit": self.emit
+            }, f, ensure_ascii=False)
+
+    def load(self, path: str):
+        if not os.path.exists(path):
+            return
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.chain_pos = defaultdict(list)
+        for k, v in data.get("chain_pos", {}).items():
+            p1, p2 = k.split("\t")
+            self.chain_pos[(p1, p2)] = v
+        self.emit = defaultdict(list, data.get("emit", {}))
+
+    # ユーティリティ：シード用にdisplay_wordsからPOS推定が無い場合でも形だけ持たせる
+    def guess_pos(self, text: str) -> list[tuple[str,str]]:
+        return list(self._morphs(text))
+
+pos_markov = POSMarkovModel()
+pos_markov.load(POS_MODEL_PATH)
+
+# アップロード学習エンドポイント（形態素版）
+@app.post("/api/odai/train")
+async def train_markov(file: UploadFile = File(...)):
+    try:
+        content = (await file.read()).decode("utf-8", errors="ignore")
+        lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
+        if not lines:
+            raise HTTPException(status_code=400, detail="有効な行がありません")
+        pos_markov.train_lines(lines)
+        pos_markov.dump(POS_MODEL_PATH)
+        return {"message": f"POSモデル学習完了: {len(lines)} 行", "chain_size": len(pos_markov.chain_pos)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# 生成エンドポイント（形態素モデル使用）
+@app.post("/api/odai/generate")
+async def generate_odai(
+    count: int = Form(30),
+    use_display_words: bool = Form(True),
+    db: Session = Depends(get_db)
+):
+    try:
+        if not pos_markov.chain_pos:
+            pos_markov.load(POS_MODEL_PATH)
+        if not pos_markov.chain_pos:
+            raise HTTPException(status_code=400, detail="POSマルコフモデルが未学習です")
+
+        # 使う単語は display_words のみ
+        words = DisplayWordCRUD.get_all(db)
+        seeds = [w.word for w in words]
+        if not seeds:
+            raise HTTPException(status_code=400, detail="display_wordsが空です（文章から抽出して追加してください）")
+
+        results = []
+        for _ in range(max(1, min(count, 200))):
+            seed = random.choice(seeds)
+            seed_morph = pos_markov.guess_pos(seed)
+            # 2形態素未満ならBOS相当を補って起動性を高める
+            if len(seed_morph) < 2 and seed_morph:
+                seed_morph = [("<BOS>","<BOS>"), (seed_morph[0][0], seed_morph[0][1])]
+            text = pos_markov.generate(seed_tokens=seed_morph if seed_morph else None, max_steps=60).strip()
+            # 短すぎる場合は再試行
+            if len(text) < 4:
+                text = pos_markov.generate(None, max_steps=60).strip()
+            results.append(text or seed)
+
+        return {"count": len(results), "odai": results}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

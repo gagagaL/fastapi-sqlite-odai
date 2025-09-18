@@ -63,6 +63,7 @@ class DisplayWord(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     word = Column(String(100), nullable=False)
+    pos = Column(String(50))  # 追加: 品詞
     created_at = Column(DateTime, default=datetime.utcnow)
     
     def __repr__(self):

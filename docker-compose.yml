@@ -4,11 +4,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 開発時のコード変更のみマウント
-      - ./app:/app/app
+      - .:/app
+      - app-data:/app/data
     environment:
-      - PYTHONPATH=/app
-      - ENVIRONMENT=development
-    restart: unless-stopped
-    # 起動前にディレクトリ作成
-    command: sh -c "mkdir -p /app/data/database /app/logs && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      - PYTHONUNBUFFERED=1
+      - MECAB_DICDIR=/var/lib/mecab/dic/ipadic
+volumes:
+  app-data:

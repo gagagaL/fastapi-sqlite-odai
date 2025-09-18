@@ -3,91 +3,239 @@
 {% block title %}管理画面 - {{ title }}{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2>🔧 システム管理画面</h2>
+<div class="space-y-8">
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-900">🔧 システム管理画面</h1>
+        </div>
         
         <!-- スクレイピング機能 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h4>🕷️ ニュース収集機能</h4>
+        <div class="p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-6">🕷️ ニュース収集機能</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- 収集設定 -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">収集設定</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">記事数/サイト</label>
+                            <input type="number" id="articlesPerSite" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value="2" min="1" max="5">
+                            <p class="text-sm text-gray-500 mt-1">各サイトから取得する記事数</p>
+                        </div>
+                        <button onclick="runFullPipelineAll()" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🌐 全サイト収集＋単語抽出（全カテゴリ）
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- システム状態 -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">システム状態</h3>
+                    <div class="space-y-4">
+                        <button onclick="checkDatabaseStatus()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors border border-gray-300">
+                            🗄️ DB状態確認
+                        </button>
+                        <div id="logArea" class="border border-gray-300 rounded-lg p-4 h-80 overflow-y-auto bg-gray-50">
+                            <p class="text-sm text-gray-500">ここに実行ログが表示されます...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h5>収集設定</h5>
-                        <div class="mb-3">
-                            <label class="form-label">ニュースソース</label>
-                            <select id="newsSource" class="form-select">
-                                <option value="yahoo">Yahoo!ニュース</option>
-                                <option value="nhk">NHK</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">取得記事数</label>
-                            <input type="number" id="maxArticles" class="form-control" value="3" min="1" max="10">
-                        </div>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-primary" onclick="collectNews()">
-                                🕷️ ニュース収集開始
-                            </button>
-                            <button class="btn btn-success" onclick="extractWords()">
-                                🔤 単語抽出実行
-                            </button>
-                            <button class="btn btn-warning" onclick="runFullPipeline()">
-                                ⚡ 完全パイプライン実行
-                            </button>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h5>実行ログ</h5>
-                        <div id="logArea" class="border p-3" style="height: 300px; overflow-y: auto; background-color: #f8f9fa;">
-                            <small class="text-muted">ここに実行ログが表示されます...</small>
-                        </div>
-                    </div>
+        </div>
+    </div>
+
+    <!-- 単語管理 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 class="text-xl font-semibold text-gray-900">🔤 抽出単語管理</h2>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="wordSearch" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="単語検索..." style="width: 200px;">
+                    <button onclick="searchWords()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">検索</button>
+                    <button onclick="loadWords()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-300">🔄</button>
+                </div>
+            </div>
+        </div>
+        <div class="p-6">
+            <div id="wordsArea">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">単語リストを読み込み中...</p>
+                </div>
+            </div>
+            <div id="wordsPagination" class="mt-6"></div>
+        </div>
+    </div>
+
+    <!-- 表示単語管理機能 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 class="text-xl font-semibold text-gray-900">🫧 表示単語管理</h2>
+                <div class="flex gap-2">
+                    <a href="/display" class="px-4 py-2 bg-white hover:bg-gray-50 text-primary-700 font-medium rounded-lg transition-colors border border-primary-300">
+                        👁️ 表示画面を開く
+                    </a>
+                    <button class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors" onclick="loadDisplayWords()">
+                        🔄 リスト更新
+                    </button>
                 </div>
             </div>
         </div>
 
-        <!-- 統計情報 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>📊 統計情報</h4>
-                <button class="btn btn-sm btn-outline-primary" onclick="loadStats()">🔄 更新</button>
-            </div>
-            <div class="card-body">
-                <div id="statsArea">
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">読み込み中...</span>
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- 左：追加フォーム -->
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-3">単語を直接追加</h3>
+                        <label for="displayWord" class="block text-sm font-medium text-gray-700 mb-2">表示する単語</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="displayWord" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="例：AI / 火星 / カメラ">
+                            <button class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors" onclick="addDisplayWord()">追加</button>
                         </div>
-                        <p>統計情報を読み込み中...</p>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-3">文章から名詞を抽出して追加</h3>
+                        <label for="displaySentence" class="block text-sm font-medium text-gray-700 mb-2">文章</label>
+                        <textarea id="displaySentence" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="ここに文章を入力"></textarea>
+                        <div class="mt-3 flex items-center gap-3">
+                            <button class="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg transition-colors" onclick="addDisplaySentence()">抽出して追加</button>
+                            <span class="text-sm text-gray-500">名詞を多めに抽出します</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右：登録済み -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-3">登録済み単語</h3>
+                    <div id="wordsList" class="border border-gray-200 rounded-lg p-4 bg-gray-50 h-64 overflow-y-auto">
+                        <div class="text-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                            <p class="text-gray-600 mt-2 text-sm">単語リストを読み込み中...</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <!-- 基本機能 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h4>📊 基本機能</h4>
+    </div>
+
+    <!-- 統計情報 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-gray-900">📊 統計情報</h2>
+                <button onclick="loadStats()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">
+                    🔄 更新
+                </button>
             </div>
-            <div class="card-body">
-                <div class="d-grid gap-2 d-md-block">
-                    <button class="btn btn-success" onclick="initSampleData()">
-                        🎲 サンプルデータ投入
+        </div>
+        <div class="p-6">
+            <div id="statsArea">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">統計情報を読み込み中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 基本機能 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">📊 基本機能</h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <button onclick="initSampleData()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                    🎲 サンプルデータ投入
+                </button>
+                <button onclick="repairDatabase()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition-colors">
+                    🔧 データベース修復
+                </button>
+                <a href="/docs" target="_blank" class="px-4 py-2 bg-white hover:bg-gray-50 text-primary-700 font-medium rounded-lg transition-colors border border-primary-300 text-center">
+                    📖 API仕様
+                </a>
+                <button onclick="checkStats()" class="px-4 py-2 bg-white hover:bg-gray-50 text-blue-700 font-medium rounded-lg transition-colors border border-blue-300">
+                    📊 統計確認
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- 大喜利お題生成 -->
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mt-8">
+    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">🎭 大喜利お題ジェネレーター</h2>
+    </div>
+    <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- モデル学習 -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">マルコフモデル学習</h3>
+                <div class="space-y-4">
+                    <div class="border border-gray-300 rounded-lg p-4">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                お題テキストファイル（1行に1つのお題）
+                            </label>
+                            <input type="file" id="odaiFile" class="w-full mb-4 p-2 border border-gray-300 rounded-lg" accept=".txt">
+                            <button type="button" onclick="trainMarkovModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                マルコフモデルを学習
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- お題生成設定 -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">お題生成設定</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">生成数</label>
+                        <input type="number" id="odaiCount" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="30" min="1" max="100">
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="useWords" class="h-4 w-4 text-primary-600 border-gray-300 rounded" checked>
+                        <label for="useWords" class="ml-2 text-sm text-gray-700">
+                            抽出単語をシードに使用
+                        </label>
+                    </div>
+                    <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                        🎲 お題を生成
                     </button>
-                    <a href="/docs" class="btn btn-outline-primary" target="_blank">
-                        📖 API仕様
-                    </a>
-                    <button class="btn btn-outline-info" onclick="checkStats()">
-                        📊 統計確認
-                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 生成結果 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">生成結果</h3>
+            <div id="generatedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <p class="text-gray-500">お題を生成するとここに表示されます</p>
+            </div>
+            
+            <div class="mt-4 flex justify-end">
+                <button onclick="saveGeneratedOdai()" id="saveOdaiButton" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md hidden">
+                    💾 お題を保存
+                </button>
+            </div>
+        </div>
+        
+        <!-- 保存済みお題 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">保存済みお題</h3>
+            <div id="savedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <div class="text-center py-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">お題を読み込み中...</p>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
 
 <script>
 // ログ出力関数
@@ -315,9 +463,170 @@ async function checkStats() {
     }
 }
 
-// ページ読み込み時に統計情報を取得
+// 表示単語の追加
+async function addDisplayWord() {
+    const word = document.getElementById('displayWord').value.trim();
+    
+    if (!word) {
+        addLog('❌ 単語が入力されていません', 'error');
+        return;
+    }
+    
+    addLog(`🫧 単語「${word}」を追加中...`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('word', word);
+        
+        const response = await fetch('/api/display/words', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 単語「${word}」を追加しました`, 'success');
+            document.getElementById('displayWord').value = '';
+            loadDisplayWords();
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 文章から名詞を抽出して追加
+async function addDisplaySentence() {
+    const sentence = document.getElementById('displaySentence').value.trim();
+    if (!sentence) {
+        addLog('❌ 文章が入力されていません', 'error');
+        return;
+    }
+    addLog(`🫧 文章から名詞を抽出して追加中...`);
+    try {
+        const formData = new URLSearchParams();
+        formData.append('sentence', sentence);
+        const response = await fetch('/api/display/sentence', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        const result = await response.json();
+        if (response.ok) {
+            const nouns = result?.nouns || (result?.words ? result.words.map(w => w.word) : []);
+            addLog(`✅ 抽出して追加しました: ${nouns.join(', ')}`, 'success');
+            document.getElementById('displaySentence').value = '';
+            loadDisplayWords();
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 表示単語リスト読み込み
+async function loadDisplayWords() {
+    try {
+        const response = await fetch('/api/display/words');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const wordsHTML = result.words.length > 0 
+                ? result.words.map(word => `
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>${word.word}</span>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDisplayWord(${word.id})">
+                            削除
+                        </button>
+                    </div>`
+                ).join('')
+                : '<p class="text-muted">まだ単語が登録されていません</p>';
+            
+            document.getElementById('wordsList').innerHTML = wordsHTML;
+        } else {
+            document.getElementById('wordsList').innerHTML = 
+                '<div class="alert alert-warning">単語リストの読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('wordsList').innerHTML = 
+            '<div class="alert alert-danger">単語リストの読み込みでエラーが発生しました</div>';
+    }
+}
+
+// 表示単語の削除
+async function deleteDisplayWord(wordId) {
+    addLog(`🗑️ 単語ID「${wordId}」を削除中...`);
+    
+    try {
+        const response = await fetch(`/api/display/words/${wordId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            addLog('✅ 単語を削除しました', 'success');
+            loadDisplayWords(); // 単語リスト更新
+        } else {
+            const result = await response.json();
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+async function generateOdai() {
+  const count = document.getElementById('odaiCount').value || 30;
+
+  const form = new URLSearchParams();
+  form.append('count', count);
+  form.append('use_display_words', 'true'); // ← display_wordsを使う
+
+  const res = await fetch('/api/odai/generate', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: form
+  });
+  const data = await res.json();
+
+  if (res.ok) {
+    const area = document.getElementById('generatedOdaiArea');
+    area.innerHTML = data.odai.map(t => `<div class="py-1">${t}</div>`).join('');
+    document.getElementById('saveOdaiButton').classList.remove('hidden');
+  } else {
+    addLog(`❌ 生成エラー: ${data.detail || '不明なエラー'}`, 'error');
+  }
+}
+
+async function trainMarkovModel() {
+  const fileInput = document.getElementById('odaiFile');
+  if (!fileInput.files.length) {
+    addLog('❌ ファイルを選択してください', 'error');
+    return;
+  }
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+  addLog('📚 モデル学習を開始します...');
+  try {
+    const res = await fetch('/api/odai/train', { method: 'POST', body: form });
+    const data = await res.json();
+    if (res.ok) {
+      addLog(`✅ ${data.message}（チェイン: ${data.chain_size}）`, 'success');
+    } else {
+      addLog(`❌ 学習エラー: ${data.detail || '不明なエラー'}`, 'error');
+    }
+  } catch (e) {
+    addLog(`❌ 通信エラー: ${e.message}`, 'error');
+  }
+}
+
+// ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
+    loadDisplayWords(); // 単語リスト読み込み
     addLog('🚀 管理画面を初期化しました');
 });
 </script>
