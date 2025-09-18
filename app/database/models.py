@@ -1,7 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean
+# app/database/models.py - 修正版
+
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from datetime import datetime
-from .connection import Base
+
+Base = declarative_base()
 
 class NewsArticle(Base):
     """ニュース記事テーブル"""
@@ -18,15 +22,21 @@ class NewsArticle(Base):
         return f"<NewsArticle(id={self.id}, title='{self.title[:50]}...')>"
 
 class ExtractedWord(Base):
-    """抽出単語テーブル"""
+    """抽出単語テーブル（拡張版）"""
     __tablename__ = "extracted_words"
     
     id = Column(Integer, primary_key=True, index=True)
     word = Column(String(100), nullable=False, index=True)
     word_type = Column(String(50))  # 名詞、固有名詞など
+    part_of_speech = Column(String(50))  # 品詞詳細（MeCab用）
     frequency = Column(Integer, default=1)
-    source_article_id = Column(Integer)
+    importance_score = Column(Float, default=0.0)  # 重要度スコア
+    source_article_id = Column(Integer, ForeignKey('news_articles.id'))
+    context = Column(Text)  # 出現文脈
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # リレーション
+    source_article = relationship("NewsArticle", backref="extracted_words")
 
     def __repr__(self):
         return f"<ExtractedWord(word='{self.word}', type='{self.word_type}')>"

@@ -1,29 +1,36 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-8">
-        <div class="jumbotron bg-primary text-white p-5 rounded mb-4">
-            <h1 class="display-4">🎭 大喜利お題ジェネレーター</h1>
-            <p class="lead">ニュースから単語を抽出して、オリジナルの大喜利お題を自動生成します！</p>
-            <hr class="my-4">
-            <a class="btn btn-light btn-lg" href="/topic" role="button">🎯 お題を見る</a>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Main content -->
+    <div class="lg:col-span-2">
+        <!-- Hero section -->
+        <div class="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-8 rounded-xl shadow-lg mb-8">
+            <h1 class="text-4xl font-bold mb-4">🎭 大喜利お題ジェネレーター</h1>
+            <p class="text-xl mb-6 text-primary-100">ニュースから単語を抽出して、オリジナルの大喜利お題を自動生成します！</p>
+            <a href="/topic" class="inline-flex items-center px-6 py-3 bg-white text-primary-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors shadow-md">
+                🎯 お題を見る
+            </a>
         </div>
 
+        <!-- Recent topics -->
         {% if recent_topics %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0">📝 最新のお題</h5>
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-900">📝 最新のお題</h2>
             </div>
-            <div class="card-body">
+            <div class="p-6">
                 {% for topic in recent_topics %}
-                <div class="alert {% if topic.is_generated %}alert-success{% else %}alert-info{% endif %} mb-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span>{{ topic.topic_text }}</span>
-                        <small class="text-muted">
-                            {% if topic.is_generated %}🤖 自動生成{% else %}📝 手動登録{% endif %}
-                            | {{ topic.created_at.strftime('%m/%d %H:%M') }}
-                        </small>
+                <div class="{% if topic.is_generated %}bg-green-50 border-green-200{% else %}bg-blue-50 border-blue-200{% endif %} border rounded-lg p-4 mb-4 last:mb-0">
+                    <div class="flex justify-between items-start">
+                        <p class="text-gray-900 font-medium flex-1">{{ topic.topic_text }}</p>
+                        <div class="ml-4 flex items-center space-x-2 text-sm text-gray-500">
+                            <span class="{% if topic.is_generated %}text-green-600{% else %}text-blue-600{% endif %}">
+                                {% if topic.is_generated %}🤖 自動生成{% else %}📝 手動登録{% endif %}
+                            </span>
+                            <span>|</span>
+                            <span>{{ topic.created_at.strftime('%m/%d %H:%M') }}</span>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -32,43 +39,46 @@
         {% endif %}
     </div>
 
-    <div class="col-lg-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">📊 統計情報</h5>
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- Statistics -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-900">📊 統計情報</h2>
             </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6 mb-3">
-                        <h3 class="text-primary">{{ stats.news_count }}</h3>
-                        <small class="text-muted">ニュース記事</small>
+            <div class="p-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-primary-600">{{ stats.news_count }}</div>
+                        <div class="text-sm text-gray-600">ニュース記事</div>
                     </div>
-                    <div class="col-6 mb-3">
-                        <h3 class="text-success">{{ stats.word_count }}</h3>
-                        <small class="text-muted">抽出単語</small>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-green-600">{{ stats.word_count }}</div>
+                        <div class="text-sm text-gray-600">抽出単語</div>
                     </div>
-                    <div class="col-6">
-                        <h3 class="text-warning">{{ stats.topic_count }}</h3>
-                        <small class="text-muted">お題数</small>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-yellow-600">{{ stats.topic_count }}</div>
+                        <div class="text-sm text-gray-600">お題数</div>
                     </div>
-                    <div class="col-6">
-                        <h3 class="text-info">{{ stats.training_count }}</h3>
-                        <small class="text-muted">学習データ</small>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-blue-600">{{ stats.training_count }}</div>
+                        <div class="text-sm text-gray-600">学習データ</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="card mt-4">
-            <div class="card-header">
-                <h5 class="mb-0">🔧 開発者向け</h5>
+        <!-- Developer tools -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-900">🔧 開発者向け</h2>
             </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="/docs" class="btn btn-outline-primary" target="_blank">
+            <div class="p-6">
+                <div class="space-y-3">
+                    <a href="/docs" target="_blank" class="w-full inline-flex items-center justify-center px-4 py-2 border border-primary-300 text-primary-700 bg-white rounded-lg hover:bg-primary-50 transition-colors">
                         📖 API仕様
                     </a>
-                    <button class="btn btn-outline-success" onclick="initSampleData()">
+                    <button onclick="initSampleData()" class="w-full inline-flex items-center justify-center px-4 py-2 border border-green-300 text-green-700 bg-white rounded-lg hover:bg-green-50 transition-colors">
                         🎲 サンプルデータ投入
                     </button>
                 </div>

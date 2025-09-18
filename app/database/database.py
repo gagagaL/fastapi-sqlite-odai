@@ -1,4 +1,3 @@
-# app/database/connection.py - 修正版（ディレクトリ作成対応）
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -31,11 +30,10 @@ def get_db():
     finally:
         db.close()
 
-def init_db():
+def init_database():
     """データベースの初期化"""
-    from app.models import news_article, extracted_word, topic
     try:
-        # テーブルを作成
+        # モデルに基づいてテーブルを作成
         Base.metadata.create_all(bind=engine)
         logger.info("データベーステーブルを作成しました")
     except Exception as e:

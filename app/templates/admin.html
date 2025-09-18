@@ -3,86 +3,179 @@
 {% block title %}管理画面 - {{ title }}{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h2>🔧 システム管理画面</h2>
+<div class="space-y-8">
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h1 class="text-2xl font-bold text-gray-900">🔧 システム管理画面</h1>
+        </div>
         
         <!-- スクレイピング機能 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h4>🕷️ ニュース収集機能</h4>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h5>収集設定</h5>
-                        <div class="mb-3">
-                            <label class="form-label">ニュースソース</label>
-                            <select id="newsSource" class="form-select">
-                                <option value="yahoo">Yahoo!ニュース</option>
-                                <option value="nhk">NHK</option>
-                            </select>
+        <div class="p-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-6">🕷️ ニュース収集機能</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- 収集設定 -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">収集設定</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">記事数/サイト</label>
+                            <input type="number" id="articlesPerSite" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value="2" min="1" max="5">
+                            <p class="text-sm text-gray-500 mt-1">各サイトから取得する記事数</p>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">取得記事数</label>
-                            <input type="number" id="maxArticles" class="form-control" value="3" min="1" max="10">
-                        </div>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-primary" onclick="collectNews()">
-                                🕷️ ニュース収集開始
-                            </button>
-                            <button class="btn btn-success" onclick="extractWords()">
-                                🔤 単語抽出実行
-                            </button>
-                            <button class="btn btn-warning" onclick="runFullPipeline()">
-                                ⚡ 完全パイプライン実行
-                            </button>
-                        </div>
+                        <button onclick="runFullPipelineAll()" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🌐 全サイト収集＋単語抽出（全カテゴリ）
+                        </button>
                     </div>
-                    <div class="col-md-6">
-                        <h5>実行ログ</h5>
-                        <div id="logArea" class="border p-3" style="height: 300px; overflow-y: auto; background-color: #f8f9fa;">
-                            <small class="text-muted">ここに実行ログが表示されます...</small>
+                </div>
+                
+                <!-- システム状態 -->
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">システム状態</h3>
+                    <div class="space-y-4">
+                        <button onclick="checkDatabaseStatus()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors border border-gray-300">
+                            🗄️ DB状態確認
+                        </button>
+                        <div id="logArea" class="border border-gray-300 rounded-lg p-4 h-80 overflow-y-auto bg-gray-50">
+                            <p class="text-sm text-gray-500">ここに実行ログが表示されます...</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 統計情報 -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>📊 統計情報</h4>
-                <button class="btn btn-sm btn-outline-primary" onclick="loadStats()">🔄 更新</button>
+    <!-- 単語管理 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 class="text-xl font-semibold text-gray-900">🔤 抽出単語管理</h2>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="wordSearch" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="単語検索..." style="width: 200px;">
+                    <button onclick="searchWords()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">検索</button>
+                    <button onclick="loadWords()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-300">🔄</button>
+                </div>
             </div>
-            <div class="card-body">
-                <div id="statsArea">
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">読み込み中...</span>
-                        </div>
-                        <p>統計情報を読み込み中...</p>
+        </div>
+        <div class="p-6">
+            <div id="wordsArea">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">単語リストを読み込み中...</p>
+                </div>
+            </div>
+            <div id="wordsPagination" class="mt-6"></div>
+        </div>
+    </div>
+
+    <!-- 統計情報 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold text-gray-900">📊 統計情報</h2>
+                <button onclick="loadStats()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">
+                    🔄 更新
+                </button>
+            </div>
+        </div>
+        <div class="p-6">
+            <div id="statsArea">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">統計情報を読み込み中...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 基本機能 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">📊 基本機能</h2>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <button onclick="initSampleData()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                    🎲 サンプルデータ投入
+                </button>
+                <button onclick="repairDatabase()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded-lg transition-colors">
+                    🔧 データベース修復
+                </button>
+                <a href="/docs" target="_blank" class="px-4 py-2 bg-white hover:bg-gray-50 text-primary-700 font-medium rounded-lg transition-colors border border-primary-300 text-center">
+                    📖 API仕様
+                </a>
+                <button onclick="checkStats()" class="px-4 py-2 bg-white hover:bg-gray-50 text-blue-700 font-medium rounded-lg transition-colors border border-blue-300">
+                    📊 統計確認
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- 大喜利お題生成 -->
+<div class="bg-white rounded-xl shadow-lg overflow-hidden mt-8">
+    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-semibold text-gray-900">🎭 大喜利お題ジェネレーター</h2>
+    </div>
+    <div class="p-6">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- モデル学習 -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">マルコフモデル学習</h3>
+                <div class="space-y-4">
+                    <div class="border border-gray-300 rounded-lg p-4">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                お題テキストファイル（1行に1つのお題）
+                            </label>
+                            <input type="file" id="odaiFile" class="w-full mb-4 p-2 border border-gray-300 rounded-lg" accept=".txt">
+                            <button type="button" onclick="trainMarkovModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+                                マルコフモデルを学習
+                            </button>
+                        </form>
                     </div>
+                </div>
+            </div>
+            
+            <!-- お題生成設定 -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">お題生成設定</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">生成数</label>
+                        <input type="number" id="odaiCount" class="w-full px-3 py-2 border border-gray-300 rounded-lg" value="30" min="1" max="100">
+                    </div>
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="useWords" class="h-4 w-4 text-primary-600 border-gray-300 rounded" checked>
+                        <label for="useWords" class="ml-2 text-sm text-gray-700">
+                            抽出単語をシードに使用
+                        </label>
+                    </div>
+                    <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                        🎲 お題を生成
+                    </button>
                 </div>
             </div>
         </div>
         
-        <!-- 基本機能 -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h4>📊 基本機能</h4>
+        <!-- 生成結果 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">生成結果</h3>
+            <div id="generatedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <p class="text-gray-500">お題を生成するとここに表示されます</p>
             </div>
-            <div class="card-body">
-                <div class="d-grid gap-2 d-md-block">
-                    <button class="btn btn-success" onclick="initSampleData()">
-                        🎲 サンプルデータ投入
-                    </button>
-                    <a href="/docs" class="btn btn-outline-primary" target="_blank">
-                        📖 API仕様
-                    </a>
-                    <button class="btn btn-outline-info" onclick="checkStats()">
-                        📊 統計確認
-                    </button>
+            
+            <div class="mt-4 flex justify-end">
+                <button onclick="saveGeneratedOdai()" id="saveOdaiButton" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md hidden">
+                    💾 お題を保存
+                </button>
+            </div>
+        </div>
+        
+        <!-- 保存済みお題 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">保存済みお題</h3>
+            <div id="savedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <div class="text-center py-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">お題を読み込み中...</p>
                 </div>
             </div>
         </div>
@@ -90,6 +183,185 @@
 </div>
 
 <script>
+let currentPage = 1;
+const perPage = 20;
+let generatedOdaiList = [];
+
+// マルコフモデルを学習
+async function trainMarkovModel() {
+    const fileInput = document.getElementById('odaiFile');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        addLog('❌ ファイルを選択してください', 'error');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    addLog('🔄 マルコフモデルを学習中...');
+    
+    try {
+        const response = await fetch('/api/odai/train', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📊 ${result.model_states}状態, ${result.start_states}開始状態`, 'info');
+        } else {
+            addLog(`❌ 学習エラー: ${result.error || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// お題を生成
+async function generateOdai() {
+    const count = document.getElementById('odaiCount').value;
+    const useWords = document.getElementById('useWords').checked;
+    
+    const formData = new FormData();
+    formData.append('count', count);
+    formData.append('use_words', useWords);
+    
+    addLog(`🎲 ${count}個のお題を生成中...`);
+    
+    try {
+        const response = await fetch('/api/odai/generate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            addLog(`✅ ${result.message}`, 'success');
+            
+            // 生成結果を表示
+            generatedOdaiList = result.odai_list;
+            displayGeneratedOdai(result.odai_list, result.seed_words_used);
+            
+            // 保存ボタンを表示
+            document.getElementById('saveOdaiButton').classList.remove('hidden');
+        } else {
+            addLog(`❌ 生成エラー: ${result.error || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 生成されたお題を表示
+function displayGeneratedOdai(odaiList, seedWords) {
+    const odaiArea = document.getElementById('generatedOdaiArea');
+    
+    let html = '';
+    
+    if (seedWords && seedWords.length > 0) {
+        html += '<div class="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">';
+        html += '<p class="text-sm text-blue-700 font-medium">使用した単語: ';
+        html += seedWords.map(word => `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full mr-1 mb-1">${word}</span>`).join('');
+        html += '</p></div>';
+    }
+    
+    html += '<div class="space-y-2">';
+    
+    odaiList.forEach((odai, index) => {
+        html += `
+            <div class="p-3 border border-gray-200 hover:bg-gray-50 rounded-lg">
+                <div class="flex items-start">
+                    <span class="text-gray-500 mr-2">${index + 1}.</span>
+                    <p class="text-gray-900">${odai}</p>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    odaiArea.innerHTML = html;
+}
+
+// 生成されたお題を保存
+async function saveGeneratedOdai() {
+    if (generatedOdaiList.length === 0) {
+        addLog('⚠️ 保存するお題がありません', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    generatedOdaiList.forEach(odai => {
+        formData.append('odai_list', odai);
+    });
+    
+    addLog(`💾 ${generatedOdaiList.length}個のお題を保存中...`);
+    
+    try {
+        const response = await fetch('/api/odai/save', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            addLog(`✅ ${result.message}`, 'success');
+            loadSavedOdai();
+        } else {
+            addLog(`❌ 保存エラー: ${result.error || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 保存済みのお題を読み込み
+async function loadSavedOdai() {
+    const odaiArea = document.getElementById('savedOdaiArea');
+    
+    try {
+        const response = await fetch('/api/odai/list');
+        const result = await response.json();
+        
+        if (response.ok && !result.error) {
+            if (result.topics.length === 0) {
+                odaiArea.innerHTML = '<p class="text-gray-500 text-center py-4">保存されたお題はありません</p>';
+                return;
+            }
+            
+            let html = '<div class="space-y-2">';
+            
+            result.topics.forEach((topic, index) => {
+                html += `
+                    <div class="p-3 border border-gray-200 hover:bg-gray-50 rounded-lg">
+                        <div class="flex items-start">
+                            <span class="text-gray-500 mr-2">${index + 1}.</span>
+                            <div>
+                                <p class="text-gray-900">${topic.content}</p>
+                                <p class="text-xs text-gray-500 mt-1">${topic.created_at}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            odaiArea.innerHTML = html;
+        } else {
+            odaiArea.innerHTML = '<p class="text-red-500 text-center py-4">お題の読み込みに失敗しました</p>';
+        }
+    } catch (error) {
+        odaiArea.innerHTML = '<p class="text-red-500 text-center py-4">通信エラーが発生しました</p>';
+    }
+}
+
+
 // ログ出力関数
 function addLog(message, type = 'info') {
     const logArea = document.getElementById('logArea');
@@ -101,106 +373,327 @@ function addLog(message, type = 'info') {
     logArea.scrollTop = logArea.scrollHeight;
 }
 
-// ニュース収集
-async function collectNews() {
-    const source = document.getElementById('newsSource').value;
-    const maxArticles = document.getElementById('maxArticles').value;
-    
-    addLog(`📰 ${source}から${maxArticles}件の記事収集を開始...`);
+
+// データベース修復
+async function repairDatabase() {
+    addLog('🔧 データベース修復を開始...');
     
     try {
-        const formData = new URLSearchParams();
-        formData.append('source', source);
-        formData.append('max_articles', maxArticles);
-        
-        const response = await fetch('/api/scraping/collect-news', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData
-        });
-        
+        const response = await fetch('/api/admin/repair-database', {method: 'POST'});
         const result = await response.json();
         
         if (response.ok) {
             addLog(`✅ ${result.message}`, 'success');
-            addLog(`📊 収集: ${result.collected}件, 保存: ${result.saved}件`);
-            if (result.articles && result.articles.length > 0) {
-                addLog(`📝 取得記事例: "${result.articles[0].title}"`);
-            }
-            loadStats(); // 統計更新
+            loadStats();
+            loadWords();
         } else {
-            addLog(`❌ エラー: ${result.detail}`, 'error');
+            addLog(`❌ 修復エラー: ${result.detail}`, 'error');
         }
     } catch (error) {
         addLog(`❌ 通信エラー: ${error.message}`, 'error');
     }
 }
 
-// 単語抽出
-async function extractWords() {
-    addLog('🔤 記事から単語抽出を開始...');
+// データベース状況確認
+async function checkDatabaseStatus() {
+    addLog('📊 データベース状況を確認中...');
     
     try {
-        const formData = new URLSearchParams();
-        formData.append('max_articles', '10');
-        
-        const response = await fetch('/api/scraping/extract-words', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData
-        });
-        
+        const response = await fetch('/api/admin/database-status');
         const result = await response.json();
         
         if (response.ok) {
-            addLog(`✅ ${result.message}`, 'success');
-            addLog(`📊 処理記事: ${result.processed_articles}件, 抽出単語: ${result.extracted_words}個`);
-            if (result.top_words && Object.keys(result.top_words).length > 0) {
-                const topWordsText = Object.entries(result.top_words).slice(0, 3)
-                    .map(([word, freq]) => `${word}(${freq})`).join(', ');
-                addLog(`🔝 頻出単語: ${topWordsText}`);
+            addLog(`🏥 全体状況: ${result.overall_status}`, 
+                   result.overall_status === 'healthy' ? 'success' : 'error');
+            
+            // result.tables を参照するように修正
+            if (result.tables) {
+                Object.entries(result.tables).forEach(([table, status]) => {
+                    if (status.exists) {
+                        addLog(`✅ ${table}: ${status.count}件`, 'success');
+                    } else {
+                        addLog(`❌ ${table}: テーブル不存在`, 'error');
+                    }
+                });
             }
-            loadStats(); // 統計更新
         } else {
-            addLog(`❌ エラー: ${result.detail}`, 'error');
+            addLog(`❌ 状況確認エラー`, 'error');
         }
     } catch (error) {
         addLog(`❌ 通信エラー: ${error.message}`, 'error');
     }
 }
 
-// 完全パイプライン実行
-async function runFullPipeline() {
-    const source = document.getElementById('newsSource').value;
-    const maxArticles = document.getElementById('maxArticles').value;
+
+// 完全パイプライン（全サイト・全カテゴリ）
+async function runFullPipelineAll() {
+    const articlesPerSite = document.getElementById('articlesPerSite').value;
     
-    addLog(`⚡ 完全パイプライン実行開始 (${source}, ${maxArticles}件)`);
+    addLog(`🌐 全サイト・全カテゴリ収集開始 - 各サイト${articlesPerSite}件`);
     
     try {
-        const formData = new URLSearchParams();
-        formData.append('source', source);
-        formData.append('max_articles', maxArticles);
+        const formData = new FormData();
+        formData.append('articles_per_site', articlesPerSite);
         
-        const response = await fetch('/api/scraping/full-pipeline', {
+        const response = await fetch('/api/scraping/full-pipeline-all', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: formData
+            body: new URLSearchParams(formData)
         });
         
         const result = await response.json();
         
         if (response.ok) {
-            addLog(`✅ パイプライン完了: ${result.message}`, 'success');
-            addLog(`📰 収集: ${result.news_collection.saved}件の新記事`);
-            addLog(`🔤 抽出: ${result.word_extraction.extracted_words}個の単語`);
-            loadStats(); // 統計更新
+            addLog(`✅ 全カテゴリ収集完了`, 'success');
+            addLog(`📊 収集: ${result.collected}件, 保存: ${result.saved}件`, 'info');
+            addLog(`🔤 単語: ${result.words}個`, 'info');
+            
+            // カテゴリ別統計
+            if (result.categories) {
+                addLog(`📂 カテゴリ別統計:`, 'info');
+                Object.entries(result.categories).forEach(([category, count]) => {
+                    const categoryNames = {
+                        'sports': 'スポーツ',
+                        'entertainment': '芸能',
+                        'politics': '政治',
+                        'general': '総合'
+                    };
+                    addLog(`  ${categoryNames[category] || category}: ${count}件`, 'info');
+                });
+            }
+            
+            // ソース別統計
+            if (result.sources) {
+                addLog(`📰 ソース別統計:`, 'info');
+                Object.entries(result.sources).forEach(([source, count]) => {
+                    addLog(`  ${source}: ${count}件`, 'info');
+                });
+            }
+            
+            await loadStats();
+            await loadWords();
         } else {
-            addLog(`❌ エラー: ${result.detail}`, 'error');
+            addLog(`❌ エラー: ${result.detail || 'パイプライン実行失敗'}`, 'error');
         }
     } catch (error) {
-        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+        addLog(`❌ エラー: ${error.message}`, 'error');
     }
 }
+
+// 単語リスト読み込み
+async function loadWords(page = 1, search = null) {
+    try {
+        let url = `/api/words/list?page=${page}&per_page=20`;
+        if (search) {
+            url += `&search=${encodeURIComponent(search)}`;
+        }
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (response.ok && !data.error) {
+            displayWords(data.words);
+            displayPagination(data.page, data.total_pages, data.search);
+            currentPage = page;
+        } else {
+            document.getElementById('wordsArea').innerHTML = 
+                '<div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-center">単語の読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('wordsArea').innerHTML = 
+            '<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">単語の読み込みでエラーが発生しました</div>';
+    }
+}
+
+// 単語表示
+function displayWords(words) {
+    if (!words || words.length === 0) {
+        document.getElementById('wordsArea').innerHTML = 
+            '<div class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-center">単語が見つかりませんでした</div>';
+        return;
+    }
+    
+    const wordsHTML = `
+        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">単語</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分類</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">頻度</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">記事</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">出現文脈</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${words.map(word => `
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-semibold text-gray-900">${word.word}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                                        ${getWordTypeLabel(word.word_type)}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                                        ${word.frequency}回
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-900">
+                                        <a href="${word.article_url || '#'}" target="_blank" 
+                                           class="text-primary-600 hover:text-primary-800 hover:underline block truncate max-w-xs" 
+                                           title="${word.article_title || 'タイトル不明'}">
+                                            ${word.article_title ? 
+                                              (word.article_title.length > 40 ? 
+                                                word.article_title.substring(0, 40) + '...' : 
+                                                word.article_title) : 
+                                              'タイトル不明'}
+                                        </a>
+                                        <div class="text-xs text-gray-500 mt-1">
+                                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded">
+                                                ${word.article_source || 'ソース不明'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-700 max-w-xs">
+                                        ${word.context ? 
+                                          (word.context.length > 60 ? 
+                                            word.context.substring(0, 60) + '...' : 
+                                            word.context) : 
+                                          '<span class="text-gray-400">文脈なし</span>'}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('wordsArea').innerHTML = wordsHTML;
+}
+
+// 単語タイプラベル
+function getWordTypeLabel(type) {
+    const labels = {
+        'proper_nouns': '固有名詞',
+        'common_nouns': '一般名詞',
+        'keywords': 'キーワード',
+        'important_terms': '重要語句'
+    };
+    return labels[type] || type;
+}
+
+// ページネーション表示
+function displayPagination(currentPage, totalPages, search) {
+    if (totalPages <= 1) {
+        document.getElementById('wordsPagination').innerHTML = '';
+        return;
+    }
+    
+    let paginationHTML = '<div class="flex justify-center items-center space-x-2">';
+    
+    // 前のページ
+    if (currentPage > 1) {
+        paginationHTML += `
+            <button onclick="loadWords(${currentPage - 1}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                前
+            </button>`;
+    }
+    
+    // ページ番号
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    // 最初のページ
+    if (startPage > 1) {
+        paginationHTML += `
+            <button onclick="loadWords(1, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                1
+            </button>`;
+        if (startPage > 2) {
+            paginationHTML += '<span class="px-2 text-gray-500">...</span>';
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `
+            <button onclick="loadWords(${i}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium ${i === currentPage ? 
+                        'text-white bg-primary-600 border-primary-600' : 
+                        'text-gray-500 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                    } border rounded-lg transition-colors">
+                ${i}
+            </button>`;
+    }
+    
+    // 最後のページ
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            paginationHTML += '<span class="px-2 text-gray-500">...</span>';
+        }
+        paginationHTML += `
+            <button onclick="loadWords(${totalPages}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                ${totalPages}
+            </button>`;
+    }
+    
+    // 次のページ
+    if (currentPage < totalPages) {
+        paginationHTML += `
+            <button onclick="loadWords(${currentPage + 1}, '${search || ''}')" 
+                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                次
+            </button>`;
+    }
+    
+    paginationHTML += '</div>';
+    document.getElementById('wordsPagination').innerHTML = paginationHTML;
+}
+
+// 単語検索
+async function searchWords() {
+    const searchTerm = document.getElementById('wordSearch').value.trim();
+    if (searchTerm) {
+        await loadWords(1, searchTerm);
+    } else {
+        await loadWords(1);
+    }
+}
+
+// ページ読み込み時の初期化
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadWords();
+    const existingInit = window.onload || function(){};
+    
+    window.onload = function() {
+        existingInit();
+        loadSavedOdai();
+    };
+    
+    // 検索ボックスでEnterキー対応
+    const searchInput = document.getElementById('wordSearch');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchWords();
+            }
+        });
+    }
+    
+    addLog('🚀 拡張管理画面を初期化しました');
+});
 
 // 統計情報読み込み
 async function loadStats() {
@@ -210,73 +703,43 @@ async function loadStats() {
         
         if (response.ok) {
             const statsHTML = `
-                <div class="row mb-4">
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h3 class="text-primary">${stats.total_articles}</h3>
-                            <small>記事数</small>
-                        </div>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-primary-600">${stats.articles.total}</div>
+                        <div class="text-sm text-gray-600">記事数</div>
                     </div>
-                    <div class="col-md-3">
-                        <div class="text-center">
-                            <h3 class="text-success">${stats.total_words}</h3>
-                            <small>抽出単語数</small>
-                        </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-green-600">${stats.words.total}</div>
+                        <div class="text-sm text-gray-600">抽出単語数</div>
                     </div>
-                    <div class="col-md-6">
-                        <h5>ソース別統計</h5>
-                        ${Object.entries(stats.source_distribution).map(([source, count]) => 
-                            `<span class="badge bg-info me-2">${source}: ${count}件</span>`
-                        ).join('')}
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-yellow-600">${stats.ogiri_topics || 0}</div>
+                        <div class="text-sm text-gray-600">お題数</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-blue-600">${stats.training_topics || 0}</div>
+                        <div class="text-sm text-gray-600">学習データ</div>
                     </div>
                 </div>
-                
-                <hr>
-                
-                <div class="row">
-                    <div class="col-md-6">
-                        <h5>頻出単語 TOP10</h5>
-                        ${stats.top_words.length > 0 ? 
-                            `<div class="list-group list-group-flush">
-                                ${stats.top_words.slice(0, 10).map((word, index) => 
-                                    `<div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span>${word.word} <small class="text-muted">(${word.type})</small></span>
-                                        <span class="badge bg-primary">${word.frequency}</span>
-                                    </div>`
-                                ).join('')}
-                            </div>` :
-                            '<p class="text-muted">まだ単語が抽出されていません</p>'
-                        }
-                    </div>
-                    <div class="col-md-6">
-                        <h5>最新記事</h5>
-                        ${stats.recent_articles.length > 0 ?
-                            `<div class="list-group list-group-flush">
-                                ${stats.recent_articles.map(article => 
-                                    `<div class="list-group-item">
-                                        <div class="fw-bold">${article.title}</div>
-                                        <small class="text-muted">${article.source} - ${article.created_at}</small>
-                                    </div>`
-                                ).join('')}
-                            </div>` :
-                            '<p class="text-muted">まだ記事がありません</p>'
-                        }
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">ソース別統計</h3>
+                    <div class="flex flex-wrap gap-2">
+                        ${Object.entries(stats.articles.sources || {}).map(([source, count]) => 
+                            `<span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">${source}: ${count}件</span>`
+                        ).join('')}
                     </div>
                 </div>
             `;
             
             document.getElementById('statsArea').innerHTML = statsHTML;
-        } else {
-            document.getElementById('statsArea').innerHTML = 
-                '<div class="alert alert-warning">統計情報の読み込みに失敗しました</div>';
         }
     } catch (error) {
         document.getElementById('statsArea').innerHTML = 
-            '<div class="alert alert-danger">統計情報の読み込みでエラーが発生しました</div>';
+            '<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">統計情報の読み込みでエラーが発生しました</div>';
     }
 }
 
-// サンプルデータ投入
+// その他の既存関数
 async function initSampleData() {
     addLog('🎲 サンプルデータを投入中...');
     
@@ -295,7 +758,6 @@ async function initSampleData() {
     }
 }
 
-// 統計確認
 async function checkStats() {
     addLog('📊 統計情報を確認中...');
     
@@ -314,11 +776,5 @@ async function checkStats() {
         addLog(`❌ 統計確認エラー: ${error.message}`, 'error');
     }
 }
-
-// ページ読み込み時に統計情報を取得
-document.addEventListener('DOMContentLoaded', function() {
-    loadStats();
-    addLog('🚀 管理画面を初期化しました');
-});
 </script>
 {% endblock %}
