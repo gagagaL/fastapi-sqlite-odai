@@ -87,6 +87,7 @@ class ConfirmedOdai(Base):
     id = Column(Integer, primary_key=True, index=True)
     odai_text = Column(Text, nullable=False)
     source = Column(String(50), default="manual")  # manual, generated
+    is_active = Column(Boolean, default=False)  # 現在出題中かどうか
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):

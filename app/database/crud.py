@@ -233,3 +233,32 @@ class ConfirmedOdaiCRUD:
     def get_count(db: Session) -> int:
         """確定お題の総数を取得"""
         return db.query(ConfirmedOdai).count()
+
+    @staticmethod
+    def set_active(db: Session, odai_id: int) -> bool:
+        """指定されたお題を出題中に設定（他のお題は非出題中にする）"""
+        # まず全てのお題を非出題中にする
+        db.query(ConfirmedOdai).update({"is_active": False})
+
+        # 指定されたお題を出題中にする
+        odai = db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
+        if odai:
+            odai.is_active = True
+            db.commit()
+            return True
+        return False
+
+    @staticmethod
+    def get_active(db: Session) -> Optional[ConfirmedOdai]:
+        """現在出題中のお題を取得"""
+        return db.query(ConfirmedOdai).filter(ConfirmedOdai.is_active == True).first()
+
+    @staticmethod
+    def set_inactive(db: Session, odai_id: int) -> bool:
+        """指定されたお題を非出題中にする"""
+        odai = db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
+        if odai:
+            odai.is_active = False
+            db.commit()
+            return True
+        return False

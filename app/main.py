@@ -1369,6 +1369,7 @@ async def get_confirmed_odais(
                     "id": odai.id,
                     "odai_text": odai.odai_text,
                     "source": odai.source,
+                    "is_active": odai.is_active,
                     "created_at": odai.created_at.isoformat(),
                 }
                 for odai in odais
@@ -1419,3 +1420,65 @@ async def delete_confirmed_odai(odai_id: int, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"確定お題削除エラー: {str(e)}")
+
+
+@app.post("/api/confirmed-odais/{odai_id}/activate")
+async def activate_odai(odai_id: int, db: Session = Depends(get_db)):
+    """お題を出題中に設定"""
+    try:
+        success = ConfirmedOdaiCRUD.set_active(db, odai_id)
+        if success:
+            # 出題中のお題の情報を取得
+            active_odai = ConfirmedOdaiCRUD.get_active(db)
+            return {
+                "message": "お題を出題中に設定しました",
+                "active_odai": {
+                    "id": active_odai.id,
+                    "odai_text": active_odai.odai_text,
+                    "source": active_odai.source,
+                    "created_at": active_odai.created_at.isoformat(),
+                }
+                if active_odai
+                else None,
+            }
+        else:
+            raise HTTPException(status_code=404, detail="確定お題が見つかりません")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"お題出題設定エラー: {str(e)}")
+
+
+@app.post("/api/confirmed-odais/{odai_id}/deactivate")
+async def deactivate_odai(odai_id: int, db: Session = Depends(get_db)):
+    """お題を非出題中に設定"""
+    try:
+        success = ConfirmedOdaiCRUD.set_inactive(db, odai_id)
+        if success:
+            return {"message": "お題を非出題中に設定しました"}
+        else:
+            raise HTTPException(status_code=404, detail="確定お題が見つかりません")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"お題非出題設定エラー: {str(e)}")
+
+
+@app.get("/api/confirmed-odais/active")
+async def get_active_odai(db: Session = Depends(get_db)):
+    """現在出題中のお題を取得"""
+    try:
+        active_odai = ConfirmedOdaiCRUD.get_active(db)
+        if active_odai:
+            return {
+                "active_odai": {
+                    "id": active_odai.id,
+                    "odai_text": active_odai.odai_text,
+                    "source": active_odai.source,
+                    "created_at": active_odai.created_at.isoformat(),
+                }
+            }
+        else:
+            return {"active_odai": None}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"出題中お題取得エラー: {str(e)}")

@@ -261,6 +261,35 @@
     </div>
 </div>
 
+<!-- 出題確認モーダル -->
+<div id="activateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mt-2">出題確認</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">
+                    本当に出題しますか？
+                </p>
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm font-medium text-gray-900" id="modalOdaiText"></p>
+                </div>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button id="confirmActivate" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-24 mr-2 shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    OK
+                </button>
+                <button id="cancelActivate" class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
 // ログ出力関数
@@ -922,14 +951,20 @@ async function loadConfirmedOdais() {
         if (response.ok) {
             const odaisHTML = result.odais.length > 0 
                 ? result.odais.map(odai => `
-                    <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50">
+                    <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50 ${odai.is_active ? 'bg-yellow-50 border-yellow-200' : ''}">
                         <div class="flex-1">
-                            <span class="font-medium">${odai.odai_text}</span>
-                            <span class="ml-2 text-xs text-gray-500">(${odai.source === 'manual' ? '手動' : '生成'})</span>
+                            <span class="font-medium ${odai.is_active ? 'text-yellow-800' : ''}">${odai.odai_text}</span>
+                            <span class="ml-2 text-xs ${odai.is_active ? 'text-yellow-600' : 'text-gray-500'}">(${odai.source === 'manual' ? '手動' : '生成'})</span>
+                            ${odai.is_active ? '<span class="ml-2 px-2 py-1 text-xs bg-yellow-200 text-yellow-800 rounded font-medium">出題中</span>' : ''}
                         </div>
-                        <button onclick="deleteConfirmedOdai(${odai.id})" class="ml-2 px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors">
-                            削除
-                        </button>
+                        <div class="flex gap-2">
+                            <button onclick="showActivateModal(${odai.id}, '${odai.odai_text.replace(/'/g, "\\'")}')" class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors">
+                                ${odai.is_active ? '変更' : '出題'}
+                            </button>
+                            <button onclick="deleteConfirmedOdai(${odai.id})" class="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors">
+                                削除
+                            </button>
+                        </div>
                     </div>
                 `).join('')
                 : '<p class="text-gray-500 text-center py-4">まだ確定お題がありません</p>';
@@ -965,12 +1000,121 @@ async function deleteConfirmedOdai(odaiId) {
     }
 }
 
+// 出題確認モーダル関連の変数
+let currentOdaiId = null;
+
+// 出題確認モーダルを表示
+function showActivateModal(odaiId, odaiText) {
+    console.log('showActivateModalが呼び出されました');
+    console.log('odaiId:', odaiId);
+    console.log('odaiText:', odaiText);
+    
+    currentOdaiId = odaiId;
+    const modalText = document.getElementById('modalOdaiText');
+    const modal = document.getElementById('activateModal');
+    
+    console.log('modalText:', modalText);
+    console.log('modal:', modal);
+    
+    if (modalText) {
+        modalText.textContent = odaiText;
+    } else {
+        console.error('modalOdaiText要素が見つかりません');
+    }
+    
+    if (modal) {
+        modal.classList.remove('hidden');
+        console.log('モーダルを表示しました');
+    } else {
+        console.error('activateModal要素が見つかりません');
+    }
+}
+
+// 出題確認モーダルを非表示
+function hideActivateModal() {
+    document.getElementById('activateModal').classList.add('hidden');
+    currentOdaiId = null;
+}
+
+// お題を出題中に設定
+async function activateOdai() {
+    console.log('activateOdai関数が呼び出されました');
+    console.log('currentOdaiId:', currentOdaiId);
+    
+    if (!currentOdaiId) {
+        console.log('currentOdaiIdがnullです');
+        addLog('❌ お題IDが設定されていません', 'error');
+        return;
+    }
+    
+    addLog(`🎯 お題ID「${currentOdaiId}」を出題中に設定中...`);
+    
+    try {
+        console.log('APIリクエストを送信中...');
+        const response = await fetch(`/api/confirmed-odais/${currentOdaiId}/activate`, {
+            method: 'POST'
+        });
+        
+        console.log('レスポンス受信:', response.status);
+        const result = await response.json();
+        console.log('レスポンス内容:', result);
+        
+        if (response.ok) {
+            addLog(`✅ お題を出題中に設定しました: ${result.active_odai?.odai_text}`, 'success');
+            hideActivateModal();
+            loadConfirmedOdais(); // 確定お題一覧を更新
+            
+            // 表示画面に通知（表示画面が開いている場合）
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({type: 'odai_updated'}, '*');
+            }
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        console.error('エラー詳細:', error);
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
 // ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadDisplayWords(); // 単語リスト読み込み
     loadConfirmedOdais(); // 確定お題一覧読み込み
     addLog('🚀 管理画面を初期化しました');
+    
+    // モーダルのイベントリスナーを設定
+    const confirmButton = document.getElementById('confirmActivate');
+    const cancelButton = document.getElementById('cancelActivate');
+    
+    console.log('confirmButton:', confirmButton);
+    console.log('cancelButton:', cancelButton);
+    
+    if (confirmButton) {
+        confirmButton.addEventListener('click', function() {
+            console.log('OKボタンがクリックされました');
+            activateOdai();
+        });
+    } else {
+        console.error('confirmActivateボタンが見つかりません');
+    }
+    
+    if (cancelButton) {
+        cancelButton.addEventListener('click', function() {
+            console.log('キャンセルボタンがクリックされました');
+            hideActivateModal();
+        });
+    } else {
+        console.error('cancelActivateボタンが見つかりません');
+    }
+    
+    // モーダル外をクリックしたら閉じる
+    document.getElementById('activateModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideActivateModal();
+        }
+    });
 });
 </script>
 {% endblock %}

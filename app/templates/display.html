@@ -1,8 +1,12 @@
 {% block content %}
 <div class="row" style="width: 100%; height: 100%; background-color: #000">
     <div class="col-12">
-        <div id="bubble-container" class="border rounded p-0 bg-primary bg-opacity-10" style="height: 80vh; position: relative; overflow: hidden;">
+        <div id="bubble-container" class="border rounded p-0 bg-primary bg-opacity-10" style="height: 100vh; position: relative; overflow: hidden;">
             <!-- ここに単語の泡が表示されます -->
+            <!-- 出題中のお題表示（中央に白字で表示） -->
+            <div id="active-odai-display" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; text-align: center; transition: opacity 0.3s ease-in-out;">
+                <p id="active-odai-text" style="color: white; font-size: 48px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); margin: 0;"></p>
+            </div>
         </div>
     </div>
 </div>
@@ -348,9 +352,70 @@ async function fetchNewWords() {
     }
 }
 
+
+// 出題中のお題の監視
+let currentActiveOdaiId = null;
+
+// 出題中のお題を取得・表示
+async function loadActiveOdai() {
+    try {
+        const response = await fetch('/api/confirmed-odais/active');
+        const result = await response.json();
+        
+        const activeDisplay = document.getElementById('active-odai-display');
+        const odaiText = document.getElementById('active-odai-text');
+        
+        if (response.ok && result.active_odai) {
+            // 出題中のお題が変わったかチェック
+            if (currentActiveOdaiId !== result.active_odai.id) {
+                console.log('出題中のお題が変更されました:', result.active_odai.odai_text);
+                currentActiveOdaiId = result.active_odai.id;
+                
+                // アニメーション効果を追加
+                activeDisplay.style.opacity = '0';
+                setTimeout(() => {
+                    odaiText.textContent = result.active_odai.odai_text;
+                    activeDisplay.classList.remove('hidden');
+                    activeDisplay.style.opacity = '1';
+                }, 200);
+            }
+        } else {
+            // 出題中のお題がない場合
+            if (currentActiveOdaiId !== null) {
+                console.log('出題中のお題が解除されました');
+                currentActiveOdaiId = null;
+                activeDisplay.style.opacity = '0';
+                setTimeout(() => {
+                    activeDisplay.classList.add('hidden');
+                }, 200);
+            }
+        }
+    } catch (error) {
+        console.error('出題中お題取得エラー:', error);
+        const activeDisplay = document.getElementById('active-odai-display');
+        if (currentActiveOdaiId !== null) {
+            currentActiveOdaiId = null;
+            activeDisplay.classList.add('hidden');
+        }
+    }
+}
+
 // ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', function() {
     createBubbles();
+    loadActiveOdai(); // 出題中のお題を読み込み
+    
+    // 定期的に出題中のお題を更新（2秒間隔でリアルタイム監視）
+    setInterval(loadActiveOdai, 2000);
+    
+    // 管理画面からの通知を受信
+    window.addEventListener('message', function(event) {
+        if (event.data && event.data.type === 'odai_updated') {
+            console.log('管理画面から出題更新の通知を受信');
+            // 即座に更新
+            loadActiveOdai();
+        }
+    });
 });
 </script>
 {% endblock %}
