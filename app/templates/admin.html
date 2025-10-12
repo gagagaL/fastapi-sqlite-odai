@@ -11,31 +11,16 @@
         
         <!-- スクレイピング機能 -->
         <div class="p-6">
-            <h2 class="text-xl font-semibold text-gray-900 mb-6">🕷️ ニュース収集機能</h2>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <!-- 収集設定 -->
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">収集設定</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">記事数/サイト</label>
-                            <input type="number" id="articlesPerSite" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value="2" min="1" max="5">
-                            <p class="text-sm text-gray-500 mt-1">各サイトから取得する記事数</p>
-                        </div>
-                        <button onclick="runFullPipelineAll()" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
-                            🌐 全サイト収集＋単語抽出（全カテゴリ）
-                        </button>
-                    </div>
-                </div>
+            <h2 class="text-xl font-semibold text-gray-900 mb-6">システム状態</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-1 gap-8">
                 
                 <!-- システム状態 -->
                 <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">システム状態</h3>
                     <div class="space-y-4">
                         <button onclick="checkDatabaseStatus()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors border border-gray-300">
                             🗄️ DB状態確認
                         </button>
-                        <div id="logArea" class="border border-gray-300 rounded-lg p-4 h-80 overflow-y-auto bg-gray-50">
+                        <div id="logArea" class="border border-gray-300 rounded-lg p-4 h-40 overflow-y-auto bg-gray-50">
                             <p class="text-sm text-gray-500">ここに実行ログが表示されます...</p>
                         </div>
                     </div>
@@ -44,28 +29,6 @@
         </div>
     </div>
 
-    <!-- 単語管理 -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <h2 class="text-xl font-semibold text-gray-900">🔤 抽出単語管理</h2>
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="text" id="wordSearch" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="単語検索..." style="width: 200px;">
-                    <button onclick="searchWords()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">検索</button>
-                    <button onclick="loadWords()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-300">🔄</button>
-                </div>
-            </div>
-        </div>
-        <div class="p-6">
-            <div id="wordsArea">
-                <div class="text-center py-8">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-                    <p class="text-gray-600 mt-2">単語リストを読み込み中...</p>
-                </div>
-            </div>
-            <div id="wordsPagination" class="mt-6"></div>
-        </div>
-    </div>
 
     <!-- 表示単語管理機能 -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -86,42 +49,51 @@
         <div class="p-6">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <!-- 左：追加フォーム -->
-                <div class="space-y-6">
+                <div class="space-y-12">
                     <div>
-                        <h3 class="text-lg font-medium text-gray-900 mb-3">単語を直接追加</h3>
+                        <h3 class="text-lg font-medium text-gray-900 mb-6">単語を直接追加</h3>
                         <label for="displayWord" class="block text-sm font-medium text-gray-700 mb-2">表示する単語</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="displayWord" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="例：AI / 火星 / カメラ">
-                            <button class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors" onclick="addDisplayWord()">追加</button>
+                        <div class="space-y-2">
+                            <input type="text" id="displayWord" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="例：AI / 火星 / カメラ">
+                            <select id="displayWordPos" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                <option value="">品詞を選択（任意）</option>
+                                <option value="名詞">名詞</option>
+                                <option value="動詞">動詞</option>
+                                <option value="形容詞">形容詞</option>
+                                <option value="形容動詞">形容動詞</option>
+                                <option value="副詞">副詞</option>
+                            </select>
+                            <button class="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors" onclick="addDisplayWord()">追加</button>
                         </div>
                     </div>
-
+                        </div>
+                <div class="space-y-12">
                     <div>
-                        <h3 class="text-lg font-medium text-gray-900 mb-3">文章から名詞を抽出して追加</h3>
+                        <h3 class="text-lg font-medium text-gray-900 mb-6">文章から品詞付き単語を抽出して追加</h3>
                         <label for="displaySentence" class="block text-sm font-medium text-gray-700 mb-2">文章</label>
                         <textarea id="displaySentence" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="ここに文章を入力"></textarea>
                         <div class="mt-3 flex items-center gap-3">
                             <button class="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg transition-colors" onclick="addDisplaySentence()">抽出して追加</button>
-                            <span class="text-sm text-gray-500">名詞を多めに抽出します</span>
+                            <span class="text-sm text-gray-500">名詞、動詞、形容詞、形容動詞、副詞を抽出します</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- 右：登録済み -->
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-3">登録済み単語</h3>
+                <div class="col-span-2">
+                    <h3 class="text-lg font-medium text-gray-900 mb-6">登録済み単語</h3>
                     <div id="wordsList" class="border border-gray-200 rounded-lg p-4 bg-gray-50 h-64 overflow-y-auto">
                         <div class="text-center py-6">
                             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
                             <p class="text-gray-600 mt-2 text-sm">単語リストを読み込み中...</p>
                         </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- 統計情報 -->
+        <!-- 統計情報 -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
@@ -132,7 +104,7 @@
             </div>
         </div>
         <div class="p-6">
-            <div id="statsArea">
+                <div id="statsArea">
                 <div class="text-center py-8">
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
                     <p class="text-gray-600 mt-2">統計情報を読み込み中...</p>
@@ -172,16 +144,18 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- モデル学習 -->
             <div>
-                <h3 class="text-lg font-medium text-gray-900 mb-4">マルコフモデル学習</h3>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">マルコフモデル学習（初回は必ず学習してください）</h3>
                 <div class="space-y-4">
                     <div class="border border-gray-300 rounded-lg p-4">
                         <form id="uploadForm" enctype="multipart/form-data">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
-                                お題テキストファイル（1行に1つのお題）
+                                お題テキストファイル（1行に1つのお題）<br><span class="text-red-600 text-sm">⚠️ 初回使用時は必ず学習してください</span>
                             </label>
                             <input type="file" id="odaiFile" class="w-full mb-4 p-2 border border-gray-300 rounded-lg" accept=".txt">
                             <button type="button" onclick="trainMarkovModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                                マルコフモデルを学習
+                                マルコフモデルを学習</button>
+                            <button type="button" onclick="trainLLMModel()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
+                                LLMモデルを学習
                             </button>
                         </form>
                     </div>
@@ -201,10 +175,26 @@
                         <label for="useWords" class="ml-2 text-sm text-gray-700">
                             抽出単語をシードに使用
                         </label>
+                        </div>
+                    <div class="space-y-3">
+                        <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🎲 マルコフ連鎖でお題を生成
+                        </button>
+                        <button onclick="generateOdaiLLM()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🤖 LLMでお題を生成
+                        </button>
+                        <div class="mt-4 space-y-2">
+                            <button onclick="saveLLMModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                💾 LLMモデルを保存
+                            </button>
+                            <button onclick="loadLLMModel()" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📂 LLMモデルを読み込み
+                            </button>
+                            <button onclick="getModelInfo()" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                ℹ️ モデル情報を確認
+                            </button>
+                        </div>
                     </div>
-                    <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
-                        🎲 お題を生成
-                    </button>
                 </div>
             </div>
         </div>
@@ -212,6 +202,7 @@
         <!-- 生成結果 -->
         <div class="mt-8">
             <h3 class="text-lg font-medium text-gray-900 mb-4">生成結果</h3>
+            <div id="generationMethod" class="mb-2 text-sm text-gray-600"></div>
             <div id="generatedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
                 <p class="text-gray-500">お題を生成するとここに表示されます</p>
             </div>
@@ -219,7 +210,41 @@
             <div class="mt-4 flex justify-end">
                 <button onclick="saveGeneratedOdai()" id="saveOdaiButton" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md hidden">
                     💾 お題を保存
-                </button>
+                    </button>
+            </div>
+        </div>
+        
+        <!-- 確定お題管理 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">確定お題管理</h3>
+            
+            <!-- 確定お題追加フォーム -->
+            <div class="mb-6">
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">直接お題を追加</h4>
+                    <div class="flex gap-2">
+                        <input type="text" id="manualOdaiInput" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="お題を入力してください">
+                        <button onclick="addManualOdai()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                            ➕ 追加
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 確定お題一覧 -->
+            <div class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-md font-medium text-gray-900">確定お題一覧</h4>
+                    <button onclick="loadConfirmedOdais()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors">
+                        🔄 更新
+                    </button>
+                </div>
+                <div id="confirmedOdaiArea">
+                    <div class="text-center py-4">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                        <p class="text-gray-600 mt-2">確定お題を読み込み中...</p>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -466,17 +491,21 @@ async function checkStats() {
 // 表示単語の追加
 async function addDisplayWord() {
     const word = document.getElementById('displayWord').value.trim();
+    const pos = document.getElementById('displayWordPos').value;
     
     if (!word) {
         addLog('❌ 単語が入力されていません', 'error');
         return;
     }
     
-    addLog(`🫧 単語「${word}」を追加中...`);
+    addLog(`🫧 単語「${word}」${pos ? `（${pos}）` : ''}を追加中...`);
     
     try {
         const formData = new URLSearchParams();
         formData.append('word', word);
+        if (pos) {
+            formData.append('pos', pos);
+        }
         
         const response = await fetch('/api/display/words', {
             method: 'POST',
@@ -487,8 +516,9 @@ async function addDisplayWord() {
         const result = await response.json();
         
         if (response.ok) {
-            addLog(`✅ 単語「${word}」を追加しました`, 'success');
+            addLog(`✅ 単語「${word}」${pos ? `（${pos}）` : ''}を追加しました`, 'success');
             document.getElementById('displayWord').value = '';
+            document.getElementById('displayWordPos').value = '';
             loadDisplayWords();
         } else {
             addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
@@ -537,14 +567,17 @@ async function loadDisplayWords() {
         if (response.ok) {
             const wordsHTML = result.words.length > 0 
                 ? result.words.map(word => `
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span>${word.word}</span>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDisplayWord(${word.id})">
+                    <div class="flex justify-between items-center mb-1 p-2 border border-gray-200 rounded hover:bg-gray-100">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-medium text-sm">${word.word}</span>
+                            ${word.pos ? `<span class="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">${word.pos}</span>` : ''}
+                        </div>
+                        <button class="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors" onclick="deleteDisplayWord(${word.id})">
                             削除
                         </button>
                     </div>`
                 ).join('')
-                : '<p class="text-muted">まだ単語が登録されていません</p>';
+                : '<p class="text-gray-500 text-center py-4">まだ単語が登録されていません</p>';
             
             document.getElementById('wordsList').innerHTML = wordsHTML;
         } else {
@@ -579,54 +612,364 @@ async function deleteDisplayWord(wordId) {
 }
 
 async function generateOdai() {
-  const count = document.getElementById('odaiCount').value || 30;
+  const count = document.getElementById("odaiCount").value || 30;
 
   const form = new URLSearchParams();
-  form.append('count', count);
-  form.append('use_display_words', 'true'); // ← display_wordsを使う
+  form.append("count", count);
+  form.append("use_display_words", "true");
 
-  const res = await fetch('/api/odai/generate', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: form
-  });
-  const data = await res.json();
+  addLog("🎲 マルコフ連鎖でお題を生成中...");
 
-  if (res.ok) {
-    const area = document.getElementById('generatedOdaiArea');
-    area.innerHTML = data.odai.map(t => `<div class="py-1">${t}</div>`).join('');
-    document.getElementById('saveOdaiButton').classList.remove('hidden');
-  } else {
-    addLog(`❌ 生成エラー: ${data.detail || '不明なエラー'}`, 'error');
+  try {
+    // タイムアウト処理を追加（30秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const res = await fetch("/api/odai/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    
+    addLog(`🔍 マルコフ生成レスポンス: ${JSON.stringify(data)}`);
+
+    if (res.ok) {
+      const area = document.getElementById("generatedOdaiArea");
+      const methodArea = document.getElementById("generationMethod");
+      area.innerHTML = data.odai.map(t => `
+        <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50">
+          <span class="flex-1">${t}</span>
+          <button onclick="addToConfirmedOdais('${t.replace(/'/g, "\\'")}')" class="ml-2 px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors">
+            ➕ 追加
+          </button>
+        </div>
+      `).join("");
+      methodArea.textContent = `🎲 マルコフ連鎖で生成 (${data.count}個)`;
+      document.getElementById("saveOdaiButton").classList.remove("hidden");
+      addLog(`✅ マルコフで${data.count}個のお題を生成しました`, "success");
+    } else {
+      addLog(`❌ 生成エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      addLog(`❌ マルコフ生成タイムアウト: 30秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ マルコフ生成エラー: ${error.message}`, "error");
+    }
+  }
+}
+
+async function generateOdaiLLM() {
+  const count = document.getElementById("odaiCount").value || 30;
+
+  const form = new URLSearchParams();
+  form.append("count", count);
+  form.append("use_display_words", "true");
+
+  addLog("🤖 LLMでお題を生成中...");
+  
+  try {
+    // タイムアウト処理を追加（30秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const res = await fetch("/api/odai/generate-llm", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    
+    addLog(`🔍 LLM生成レスポンス: ${JSON.stringify(data)}`);
+
+    if (res.ok) {
+      const area = document.getElementById("generatedOdaiArea");
+      const methodArea = document.getElementById("generationMethod");
+      area.innerHTML = data.odai.map(t => `
+        <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50">
+          <span class="flex-1">${t}</span>
+          <button onclick="addToConfirmedOdais('${t.replace(/'/g, "\\'")}')" class="ml-2 px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors">
+            ➕ 追加
+          </button>
+        </div>
+      `).join("");
+      methodArea.textContent = `🤖 LLMで生成 (${data.count}個)`;
+      document.getElementById("saveOdaiButton").classList.remove("hidden");
+      addLog(`✅ LLMで${data.count}個のお題を生成しました`, "success");
+    } else {
+      addLog(`❌ LLM生成エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      addLog(`❌ LLM生成タイムアウト: 30秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ LLM生成エラー: ${error.message}`, "error");
+    }
   }
 }
 
 async function trainMarkovModel() {
-  const fileInput = document.getElementById('odaiFile');
+  const fileInput = document.getElementById("odaiFile");
   if (!fileInput.files.length) {
-    addLog('❌ ファイルを選択してください', 'error');
+    addLog("❌ ファイルを選択してください", "error");
     return;
   }
   const form = new FormData();
-  form.append('file', fileInput.files[0]);
-  addLog('📚 モデル学習を開始します...');
+  form.append("file", fileInput.files[0]);
+  addLog("📚 マルコフモデル学習を開始します...");
+  
   try {
-    const res = await fetch('/api/odai/train', { method: 'POST', body: form });
+    // タイムアウト処理を追加（60秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    
+    addLog("📤 ファイルをアップロード中...");
+    const res = await fetch("/api/odai/train", { 
+      method: "POST", 
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    addLog("📥 レスポンスを受信中...");
     const data = await res.json();
+    
+    addLog(`🔍 マルコフ学習レスポンス: ${JSON.stringify(data)}`);
+    
     if (res.ok) {
-      addLog(`✅ ${data.message}（チェイン: ${data.chain_size}）`, 'success');
+      addLog(`✅ ${data.message}（チェイン: ${data.chain_size}）`, "success");
     } else {
-      addLog(`❌ 学習エラー: ${data.detail || '不明なエラー'}`, 'error');
+      addLog(`❌ 学習エラー: ${data.detail || "不明なエラー"}`, "error");
     }
   } catch (e) {
-    addLog(`❌ 通信エラー: ${e.message}`, 'error');
+    if (e.name === 'AbortError') {
+      addLog(`❌ マルコフ学習タイムアウト: 60秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
   }
+}
+
+async function trainLLMModel() {
+  const fileInput = document.getElementById("odaiFile");
+  if (!fileInput.files.length) {
+    addLog("❌ ファイルを選択してください", "error");
+    return;
+  }
+  const form = new FormData();
+  form.append("file", fileInput.files[0]);
+  addLog("🤖 LLMモデル学習を開始します...");
+  
+  try {
+    // タイムアウト処理を追加（60秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    
+    addLog("📤 ファイルをアップロード中...");
+    const res = await fetch("/api/odai/train-llm", { 
+      method: "POST", 
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    addLog("📥 レスポンスを受信中...");
+    const data = await res.json();
+    
+    addLog(`🔍 LLM学習レスポンス: ${JSON.stringify(data)}`);
+    
+    if (res.ok) {
+      addLog(`✅ ${data.message}（テンプレート: ${data.templates}, キーワード: ${data.keywords}）`, "success");
+    } else {
+      addLog(`❌ 学習エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      addLog(`❌ LLM学習タイムアウト: 60秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+  }
+}
+
+
+// LLMモデル管理関数
+async function saveLLMModel() {
+    addLog("💾 LLMモデルを保存中...");
+    try {
+        const res = await fetch("/api/odai/save-model", { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            addLog(`✅ ${data.message} (ファイルサイズ: ${data.file_size} bytes)`, "success");
+            addLog(`📊 テンプレート: ${data.templates}個, キーワード: ${data.keywords}個`, "success");
+        } else {
+            addLog(`❌ 保存エラー: ${data.detail}`, "error");
+        }
+    } catch (e) {
+        addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+}
+
+async function loadLLMModel() {
+    addLog("📂 LLMモデルを読み込み中...");
+    try {
+        const res = await fetch("/api/odai/load-model", { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            addLog(`✅ ${data.message}`, "success");
+            addLog(`📊 テンプレート: ${data.templates}個, キーワード: ${data.keywords}個`, "success");
+        } else {
+            addLog(`❌ 読み込みエラー: ${data.detail}`, "error");
+        }
+    } catch (e) {
+        addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+}
+
+async function getModelInfo() {
+    addLog("ℹ️ モデル情報を取得中...");
+    try {
+        const res = await fetch("/api/odai/model-info");
+        const data = await res.json();
+        if (res.ok) {
+            addLog(`📊 現在のモデル情報:`, "info");
+            addLog(`  テンプレート: ${data.templates}個`, "info");
+            addLog(`  キーワード: ${data.keywords}個`, "info");
+            addLog(`  ファイル存在: ${data.file_exists ? 'あり' : 'なし'}`, "info");
+        } else {
+            addLog(`❌ 情報取得エラー: ${data.detail}`, "error");
+        }
+    } catch (e) {
+        addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+}
+
+// 確定お題関連の関数
+async function addToConfirmedOdais(odaiText) {
+    addLog(`➕ 確定お題に追加中: ${odaiText}`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('odai_text', odaiText);
+        formData.append('source', 'generated');
+        
+        const response = await fetch('/api/confirmed-odais', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 確定お題に追加しました: ${odaiText}`, 'success');
+            loadConfirmedOdais(); // 確定お題一覧を更新
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+async function addManualOdai() {
+    const odaiText = document.getElementById('manualOdaiInput').value.trim();
+    
+    if (!odaiText) {
+        addLog('❌ お題が入力されていません', 'error');
+        return;
+    }
+    
+    addLog(`➕ 手動で確定お題を追加中: ${odaiText}`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('odai_text', odaiText);
+        formData.append('source', 'manual');
+        
+        const response = await fetch('/api/confirmed-odais', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 確定お題に追加しました: ${odaiText}`, 'success');
+            document.getElementById('manualOdaiInput').value = '';
+            loadConfirmedOdais(); // 確定お題一覧を更新
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+async function loadConfirmedOdais() {
+    try {
+        const response = await fetch('/api/confirmed-odais');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const odaisHTML = result.odais.length > 0 
+                ? result.odais.map(odai => `
+                    <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50">
+                        <div class="flex-1">
+                            <span class="font-medium">${odai.odai_text}</span>
+                            <span class="ml-2 text-xs text-gray-500">(${odai.source === 'manual' ? '手動' : '生成'})</span>
+                        </div>
+                        <button onclick="deleteConfirmedOdai(${odai.id})" class="ml-2 px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors">
+                            削除
+                        </button>
+                    </div>
+                `).join('')
+                : '<p class="text-gray-500 text-center py-4">まだ確定お題がありません</p>';
+            
+            document.getElementById('confirmedOdaiArea').innerHTML = odaisHTML;
+        } else {
+            document.getElementById('confirmedOdaiArea').innerHTML = 
+                '<div class="text-red-500 text-center py-4">確定お題の読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('confirmedOdaiArea').innerHTML = 
+            '<div class="text-red-500 text-center py-4">確定お題の読み込みでエラーが発生しました</div>';
+    }
+}
+
+async function deleteConfirmedOdai(odaiId) {
+    addLog(`🗑️ 確定お題ID「${odaiId}」を削除中...`);
+    
+    try {
+        const response = await fetch(`/api/confirmed-odais/${odaiId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            addLog('✅ 確定お題を削除しました', 'success');
+            loadConfirmedOdais(); // 確定お題一覧を更新
+        } else {
+            const result = await response.json();
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
 }
 
 // ページ読み込み時に実行
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadDisplayWords(); // 単語リスト読み込み
+    loadConfirmedOdais(); // 確定お題一覧読み込み
     addLog('🚀 管理画面を初期化しました');
 });
 </script>
