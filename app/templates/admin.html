@@ -94,7 +94,7 @@
         </div>
 
         <!-- 統計情報 -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <!-- <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-semibold text-gray-900">📊 統計情報</h2>
@@ -111,7 +111,7 @@
                 </div>
             </div>
         </div>
-    </div>
+    </div> -->
     
     <!-- 基本機能 -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -214,6 +214,52 @@
             </div>
         </div>
         
+        <!-- 表示設定調整 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">表示設定調整</h3>
+            
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h4 class="text-md font-medium text-gray-900 mb-3">お題表示設定の調整</h4>
+                
+                <!-- 位置設定 -->
+                <div class="mb-4">
+                    <label for="top-position" class="text-sm font-medium text-gray-700">Top位置 (%):</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <input type="number" id="top-position" min="0" max="100" value="50" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <small class="text-gray-500">0%: 画面上部, 50%: 中央, 100%: 画面下部</small>
+                    </div>
+                </div>
+                
+                <!-- フォントサイズ設定 -->
+                <div class="mb-4">
+                    <label for="font-size" class="text-sm font-medium text-gray-700">フォントサイズ (px):</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <input type="number" id="font-size" min="12" max="200" value="48" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <small class="text-gray-500">12-200pxの範囲で指定</small>
+                    </div>
+                </div>
+                
+                <!-- 横幅設定 -->
+                <div class="mb-4">
+                    <label for="width-px" class="text-sm font-medium text-gray-700">表示ゾーン横幅 (px):</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <input type="number" id="width-px" min="200" max="2000" value="800" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <small class="text-gray-500">200-2000pxの範囲で指定</small>
+                    </div>
+                </div>
+                
+                <!-- ボタン -->
+                <div class="flex gap-2">
+                    <button onclick="updateDisplaySettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                        適用
+                    </button>
+                    <button onclick="resetDisplaySettings()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+                        リセット
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- 確定お題管理 -->
         <div class="mt-8">
             <h3 class="text-lg font-medium text-gray-900 mb-4">確定お題管理</h3>
@@ -1036,6 +1082,81 @@ function hideActivateModal() {
     currentOdaiId = null;
 }
 
+// 表示設定を更新
+async function updateDisplaySettings() {
+    const topPosition = parseInt(document.getElementById('top-position').value);
+    const fontSize = parseInt(document.getElementById('font-size').value);
+    const widthPx = parseInt(document.getElementById('width-px').value);
+    
+    if (topPosition < 0 || topPosition > 100) {
+        addLog('❌ 位置は0-100の範囲で入力してください', 'error');
+        return;
+    }
+    if (fontSize < 12 || fontSize > 200) {
+        addLog('❌ フォントサイズは12-200の範囲で入力してください', 'error');
+        return;
+    }
+    if (widthPx < 200 || widthPx > 2000) {
+        addLog('❌ 横幅は200-2000の範囲で入力してください', 'error');
+        return;
+    }
+    
+    addLog(`📍 表示設定を更新中... (位置:${topPosition}%, フォント:${fontSize}px, 横幅:${widthPx}px)`);
+    
+    try {
+        const formData = new FormData();
+        formData.append('top_position', topPosition);
+        formData.append('font_size', fontSize);
+        formData.append('width_px', widthPx);
+        
+        console.log('送信するデータ:', { topPosition, fontSize, widthPx });
+        
+        const response = await fetch('/api/display/position', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        console.log('APIレスポンス:', result);
+        
+        if (response.ok) {
+            addLog(`✅ 表示設定を更新しました`, 'success');
+            // display画面に通知
+            if (window.opener) {
+                window.opener.postMessage({type: 'position_updated'}, '*');
+            }
+        } else {
+            addLog(`❌ 表示設定エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('表示設定エラー:', error);
+        addLog(`❌ 表示設定エラー: ${error.message}`, 'error');
+    }
+}
+
+// 表示設定をリセット
+async function resetDisplaySettings() {
+    document.getElementById('top-position').value = 50;
+    document.getElementById('font-size').value = 48;
+    document.getElementById('width-px').value = 800;
+    await updateDisplaySettings();
+}
+
+// 表示設定を読み込み
+async function loadPositionSettings() {
+    try {
+        const response = await fetch('/api/display/position');
+        if (response.ok) {
+            const result = await response.json();
+            document.getElementById('top-position').value = result.top_position || 50;
+            document.getElementById('font-size').value = result.font_size || 48;
+            document.getElementById('width-px').value = result.width_px || 800;
+        }
+    } catch (error) {
+        console.error('表示設定読み込みエラー:', error);
+    }
+}
+
 // お題を出題中に設定
 async function activateOdai() {
     console.log('activateOdai関数が呼び出されました');
@@ -1082,6 +1203,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadDisplayWords(); // 単語リスト読み込み
     loadConfirmedOdais(); // 確定お題一覧読み込み
+    loadPositionSettings(); // 位置設定読み込み
     addLog('🚀 管理画面を初期化しました');
     
     // モーダルのイベントリスナーを設定

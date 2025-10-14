@@ -3,6 +3,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+import json
+import os
 from .database.connection import get_db, init_db
 from .database.crud import (
     NewsArticleCRUD,
@@ -110,6 +112,43 @@ os.makedirs("app/templates", exist_ok=True)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
+
+
+# 位置設定ファイルのパス
+POSITION_SETTINGS_FILE = "app/data/position_settings.json"
+
+
+def get_position_settings():
+    """表示設定を取得"""
+    try:
+        if os.path.exists(POSITION_SETTINGS_FILE):
+            with open(POSITION_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {
+            "top_position": 50,  # デフォルト値
+            "font_size": 48,  # デフォルトフォントサイズ
+            "width_px": 800,  # デフォルト横幅
+        }
+    except Exception as e:
+        print(f"表示設定読み込みエラー: {e}")
+        return {"top_position": 50, "font_size": 48, "width_px": 800}
+
+
+def save_display_settings(top_position, font_size, width_px):
+    """表示設定を保存"""
+    try:
+        os.makedirs(os.path.dirname(POSITION_SETTINGS_FILE), exist_ok=True)
+        settings = {
+            "top_position": top_position,
+            "font_size": font_size,
+            "width_px": width_px,
+        }
+        with open(POSITION_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"表示設定保存エラー: {e}")
+        return False
 
 
 @app.on_event("startup")
@@ -328,6 +367,23 @@ async def create_topic(topic_text: str, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"お題作成エラー: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# 位置設定のAPIエンドポイント
+@app.get("/api/display/position")
+async def get_display_position():
+    """表示位置設定を取得"""
+    try:
+        settings = get_position_settings()
+        return settings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"位置設定取得エラー: {str(e)}")
+
+
+@app.get("/api/test")
+async def test_endpoint():
+    """テストエンドポイント"""
+    return {"message": "API is working"}
 
 
 if __name__ == "__main__":
@@ -1482,3 +1538,48 @@ async def get_active_odai(db: Session = Depends(get_db)):
             return {"active_odai": None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"出題中お題取得エラー: {str(e)}")
+
+
+@app.get("/api/display/position")
+async def get_display_position():
+    """表示設定を取得"""
+    try:
+        settings = get_position_settings()
+        return settings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"表示設定取得エラー: {str(e)}")
+
+
+@app.post("/api/display/position")
+async def update_display_position(
+    top_position: int = Form(...), font_size: int = Form(48), width_px: int = Form(800)
+):
+    """表示設定を更新"""
+    try:
+        if not (0 <= top_position <= 100):
+            raise HTTPException(
+                status_code=400, detail="位置は0-100の範囲で指定してください"
+            )
+        if not (12 <= font_size <= 200):
+            raise HTTPException(
+                status_code=400, detail="フォントサイズは12-200の範囲で指定してください"
+            )
+        if not (200 <= width_px <= 2000):
+            raise HTTPException(
+                status_code=400, detail="横幅は200-2000の範囲で指定してください"
+            )
+
+        success = save_display_settings(top_position, font_size, width_px)
+        if success:
+            return {
+                "message": "表示設定を更新しました",
+                "top_position": top_position,
+                "font_size": font_size,
+                "width_px": width_px,
+            }
+        else:
+            raise HTTPException(status_code=500, detail="表示設定の保存に失敗しました")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"表示設定更新エラー: {str(e)}")
