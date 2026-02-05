@@ -1,68 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Float
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 from .connection import Base
-
-
-class NewsArticle(Base):
-    """ニュース記事テーブル"""
-
-    __tablename__ = "news_articles"
-
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String(500), nullable=False)
-    content = Column(Text)
-    url = Column(String(1000))
-    source = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<NewsArticle(id={self.id}, title='{self.title[:50]}...')>"
-
-
-class ExtractedWord(Base):
-    """抽出単語テーブル"""
-
-    __tablename__ = "extracted_words"
-
-    id = Column(Integer, primary_key=True, index=True)
-    word = Column(String(100), nullable=False, index=True)
-    word_type = Column(String(50))  # 名詞、固有名詞など
-    frequency = Column(Integer, default=1)
-    source_article_id = Column(Integer)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<ExtractedWord(word='{self.word}', type='{self.word_type}')>"
-
-
-class OgiriTopic(Base):
-    """大喜利お題テーブル"""
-
-    __tablename__ = "ogiri_topics"
-
-    id = Column(Integer, primary_key=True, index=True)
-    topic_text = Column(Text, nullable=False)
-    is_generated = Column(Boolean, default=False)  # 自動生成かどうか
-    used_words = Column(Text)  # 使用した単語（JSON形式）
-    rating = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<OgiriTopic(id={self.id}, text='{self.topic_text[:30]}...')>"
-
-
-class TrainingTopic(Base):
-    """学習用お題テーブル"""
-
-    __tablename__ = "training_topics"
-
-    id = Column(Integer, primary_key=True, index=True)
-    topic_text = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f"<TrainingTopic(id={self.id}, text='{self.topic_text[:30]}...')>"
 
 
 class DisplayWord(Base):
@@ -88,7 +27,24 @@ class ConfirmedOdai(Base):
     odai_text = Column(Text, nullable=False)
     source = Column(String(50), default="manual")  # manual, generated
     is_active = Column(Boolean, default=False)  # 現在出題中かどうか
+    quality_score = Column(Float, default=0.0)  # 品質スコア
     created_at = Column(DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<ConfirmedOdai(id={self.id}, text='{self.odai_text[:30]}...')>"
+
+
+class OdaiRating(Base):
+    """お題評価テーブル"""
+
+    __tablename__ = "odai_ratings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    odai_text = Column(Text, nullable=False)
+    rating = Column(Integer, nullable=False)  # 1-5の評価
+    source = Column(String(100))  # どの生成方法で作られたか
+    feedback = Column(Text)  # フィードバックコメント
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<OdaiRating(id={self.id}, text='{self.odai_text[:30]}...', rating={self.rating})>"

@@ -1,99 +1,35 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 import json
-import os
-from .database.connection import get_db, init_db
-from .database.crud import (
-    NewsArticleCRUD,
-    ExtractedWordCRUD,
-    OgiriTopicCRUD,
-    TrainingTopicCRUD,
-    DisplayWordCRUD,
-    ConfirmedOdaiCRUD,
-)
-from .database.models import (
-    NewsArticle as NewsArticleModel,
-    ExtractedWord,
-    OgiriTopic,
-    TrainingTopic,
-    DisplayWord,
-    ConfirmedOdai,
-)
-from .config import get_settings
-from .scraping import YahooNewsScraper, NHKNewsScraper, MeCabWordExtractor
 import os
 import re
 import MeCab
-import json, random, os
-from fastapi import UploadFile, File
-from sqlalchemy import text
+import random
+from datetime import datetime
 from collections import defaultdict
 
+from .database.connection import get_db, init_db
+from .database.crud import (
+    DisplayWordCRUD,
+    ConfirmedOdaiCRUD,
+    OdaiRatingCRUD,
+)
+from .database.models import (
+    DisplayWord,
+    ConfirmedOdai,
+    OdaiRating,
+)
+from .config import get_settings
+from .analysis.fourth_force_context_learner import FourthForceContextLearner
+from .analysis.fourth_force_generator import FourthForceGenerator
+from .analysis.fifth_force_ngram_learner import FifthForceNgramLearner
+from .analysis.fifth_force_ngram_generator import FifthForceNgramGenerator
 
-MARKOV_PATH = "app/data/markov_model.json"
+
+# データディレクトリの作成
 os.makedirs("app/data", exist_ok=True)
-
-
-class MarkovModel:
-    def __init__(self):
-        self.chain = {}  # (c1,c2) -> [c3,...]
-
-    def train_lines(self, lines: list[str]):
-        for line in lines:
-            text = (line or "").strip()
-            if not text:
-                continue
-            s = f"^{text}$"  # 開始・終了マーカー
-            for i in range(len(s) - 2):
-                key = (s[i], s[i + 1])
-                nxt = s[i + 2]
-                self.chain.setdefault(key, []).append(nxt)
-
-    def generate(self, seed_chars: str | None = None, max_len: int = 60) -> str:
-        if not self.chain:
-            return ""
-        # 開始
-        if seed_chars and len(seed_chars) >= 2:
-            key = (seed_chars[0], seed_chars[1])
-            if key not in self.chain:
-                key = random.choice(list(self.chain.keys()))
-        else:
-            key = random.choice(list(self.chain.keys()))
-        out = [key[0], key[1]]
-        for _ in range(max_len):
-            nxts = self.chain.get(key)
-            if not nxts:
-                break
-            nxt = random.choice(nxts)
-            out.append(nxt)
-            if nxt == "$":
-                break
-            key = (key[1], nxt)
-        s = "".join(out)
-        return s.strip("^$")
-
-    def dump(self, path: str):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(
-                {"/".join(k): v for k, v in self.chain.items()}, f, ensure_ascii=False
-            )
-
-    def load(self, path: str):
-        if not os.path.exists(path):
-            return
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.chain = {}
-        for k, v in data.items():
-            c1, c2 = k.split("/")
-            self.chain[(c1, c2)] = v
-
-
-markov = MarkovModel()
-markov.load(MARKOV_PATH)
 
 # 設定読み込み
 settings = get_settings()
@@ -101,8 +37,8 @@ settings = get_settings()
 # FastAPIアプリケーション初期化
 app = FastAPI(
     title=settings.app_name,
-    description="ニュースから単語を抽出して大喜利のお題を自動生成",
-    version="1.0.0",
+    description="大喜利のお題を自動生成",
+    version="2.0.0",
 )
 
 # 静的ファイルとテンプレートの設定
@@ -116,6 +52,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 # 位置設定ファイルのパス
 POSITION_SETTINGS_FILE = "app/data/position_settings.json"
+WORD_SETTINGS_FILE = "app/data/word_settings.json"
 
 
 def get_position_settings():
@@ -125,9 +62,9 @@ def get_position_settings():
             with open(POSITION_SETTINGS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         return {
-            "top_position": 50,  # デフォルト値
-            "font_size": 48,  # デフォルトフォントサイズ
-            "width_px": 800,  # デフォルト横幅
+            "top_position": 50,
+            "font_size": 48,
+            "width_px": 800,
         }
     except Exception as e:
         print(f"表示設定読み込みエラー: {e}")
@@ -151,10 +88,60 @@ def save_display_settings(top_position, font_size, width_px):
         return False
 
 
+def get_word_settings():
+    """単語表示設定を取得"""
+    try:
+        if os.path.exists(WORD_SETTINGS_FILE):
+            with open(WORD_SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {
+            "word_top_position": 20,
+        }
+    except Exception as e:
+        print(f"単語表示設定読み込みエラー: {e}")
+        return {"word_top_position": 20}
+
+
+def save_word_settings(word_top_position):
+    """単語表示設定を保存"""
+    try:
+        os.makedirs(os.path.dirname(WORD_SETTINGS_FILE), exist_ok=True)
+        settings = {
+            "word_top_position": word_top_position,
+        }
+        with open(WORD_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"単語表示設定保存エラー: {e}")
+        return False
+
+
+# 第四の力のインスタンス
+fourth_force_learner = FourthForceContextLearner()
+fourth_force_generator = FourthForceGenerator(fourth_force_learner)
+
+# 第四の力の学習データパス
+FOURTH_FORCE_DATA_PATH = "app/data/fourth_force_learning_data.json"
+
+# 第四の力の学習データを読み込み
+fourth_force_learner.load_learning_data(FOURTH_FORCE_DATA_PATH)
+
+# 第五の力のインスタンス（n-gram）
+fifth_force_learner = FifthForceNgramLearner(n=3)
+# 注: fifth_force_generatorはDBセッションが必要なため、エンドポイントで作成
+
+# 第五の力の学習データパス
+FIFTH_FORCE_DATA_PATH = "app/data/fifth_force_ngram_learning_data.json"
+
+# 第五の力の学習データを読み込み
+fifth_force_learner.load_learning_data(FIFTH_FORCE_DATA_PATH)
+
+
 @app.on_event("startup")
 async def startup_event():
     """アプリケーション起動時の処理"""
-    init_db()  # awaitを外す
+    init_db()
     print(f"🚀 {settings.app_name} が起動しました！")
     print(f"📖 API仕様: http://localhost:8000/docs")
 
@@ -165,494 +152,55 @@ async def startup_event():
 
 
 @app.get("/")
-async def root(request: Request, db: Session = Depends(get_db)):
+async def index(request: Request):
     """トップページ"""
-    # 統計情報を取得（エラー回避版）
-    try:
-        stats = {
-            "news_count": NewsArticleCRUD.get_count(db),
-            "word_count": db.query(ExtractedWord).count(),
-            "topic_count": db.query(OgiriTopic).count(),
-            "training_count": db.query(TrainingTopic).count(),
-        }
-    except Exception as e:
-        print(f"統計取得エラー: {e}")
-        stats = {
-            "news_count": 0,
-            "word_count": 0,
-            "topic_count": 0,
-            "training_count": 0,
-        }
-
-    # 最新のお題をいくつか取得
-    try:
-        recent_topics = OgiriTopicCRUD.get_all(db, limit=5)
-    except Exception as e:
-        print(f"お題取得エラー: {e}")
-        recent_topics = []
-
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "title": settings.app_name,
-            "stats": stats,
-            "recent_topics": recent_topics,
         },
-    )
-
-
-@app.get("/topic")
-async def show_random_topic(request: Request, db: Session = Depends(get_db)):
-    """ランダムお題表示ページ"""
-    try:
-        topic = OgiriTopicCRUD.get_random(db)
-    except:
-        topic = None
-
-    if not topic:
-        # お題がない場合はサンプルお題を作成
-        sample_topics = [
-            "こんな時に限って必ず起こる、スマホの電池切れあるある",
-            "宇宙人が地球に来て一番驚いたこと",
-            "AIが進化しすぎて困ること",
-        ]
-        try:
-            for sample in sample_topics:
-                OgiriTopicCRUD.create(db, sample)
-            topic = OgiriTopicCRUD.get_random(db)
-        except Exception as e:
-            print(f"サンプルお題作成エラー: {e}")
-
-    return templates.TemplateResponse(
-        "topic.html", {"request": request, "title": "お題表示", "topic": topic}
     )
 
 
 @app.get("/admin")
 async def admin_page(request: Request):
-    """管理画面（基本版）"""
+    """管理画面"""
     return templates.TemplateResponse(
-        "admin.html", {"request": request, "title": "管理画面"}
+        "admin.html",
+        {
+            "request": request,
+            "title": settings.app_name,
+        },
     )
-
-
-# ============================================
-# API ルート（基本版）
-# ============================================
-
-
-@app.get("/api/stats")
-async def get_stats(db: Session = Depends(get_db)):
-    """統計情報API"""
-    try:
-        return {
-            "news_articles": NewsArticleCRUD.get_count(db),
-            "extracted_words": db.query(ExtractedWord).count(),
-            "ogiri_topics": len(OgiriTopicCRUD.get_all(db))
-            if hasattr(OgiriTopicCRUD, "get_all")
-            else 0,
-            "training_topics": len(TrainingTopicCRUD.get_all(db))
-            if hasattr(TrainingTopicCRUD, "get_all")
-            else 0,
-        }
-    except Exception as e:
-        print(f"統計取得エラー: {e}")
-        return {"error": str(e)}
-
-
-@app.get("/api/topics/random")
-async def get_random_topic(db: Session = Depends(get_db)):
-    """ランダムお題取得API"""
-    try:
-        topic = OgiriTopicCRUD.get_random(db)
-        if not topic:
-            raise HTTPException(status_code=404, detail="お題が見つかりません")
-
-        return {
-            "id": topic.id,
-            "topic_text": topic.topic_text,
-            "is_generated": topic.is_generated,
-            "created_at": topic.created_at,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"ランダムお題取得エラー: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================
-# テスト用のデータ投入API
-# ============================================
-
-
-@app.post("/api/admin/init-sample-data")
-async def init_sample_data(db: Session = Depends(get_db)):
-    """サンプルデータ初期投入"""
-
-    try:
-        # サンプルニュース記事
-        sample_articles = [
-            (
-                "AIの進歩により新しい職業が誕生",
-                "人工知能の発達に伴い、AIエンジニアやデータサイエンティストなどの新しい職業が注目されています。",
-                "https://example.com/ai-news",
-                "テックニュース",
-            ),
-            (
-                "宇宙探査の新発見",
-                "火星で新しい鉱物が発見され、生命の痕跡の可能性が示唆されています。",
-                "https://example.com/space-news",
-                "科学ニュース",
-            ),
-            (
-                "スマートフォン新機能",
-                "最新のスマートフォンには革新的なカメラ機能が搭載されています。",
-                "https://example.com/phone-news",
-                "ガジェットニュース",
-            ),
-        ]
-
-        for title, content, url, source in sample_articles:
-            NewsArticleCRUD.create(db, title, content, url, source)
-
-        # サンプル単語
-        sample_words = [
-            ("AI", "名詞"),
-            ("人工知能", "名詞"),
-            ("スマートフォン", "名詞"),
-            ("火星", "固有名詞"),
-            ("カメラ", "名詞"),
-            ("データ", "名詞"),
-        ]
-
-        for word, word_type in sample_words:
-            ExtractedWordCRUD.create_or_increment(db, word, word_type)
-
-        # サンプル大喜利お題
-        sample_topics = [
-            "AIが進化しすぎて困ること",
-            "火星に住んだら起こりそうな問題",
-            "スマホのカメラがさらに進化したらこうなる",
-            "未来の職業あるある",
-            "宇宙人が地球に来て驚くこと",
-        ]
-
-        for topic in sample_topics:
-            OgiriTopicCRUD.create(db, topic, is_generated=False)
-
-        # 学習用お題サンプルは削除（完全にゼロから学習）
-
-        return {"message": "サンプルデータを投入しました！"}
-
-    except Exception as e:
-        print(f"サンプルデータ投入エラー: {e}")
-        return {"message": f"エラーが発生しましたが一部は投入されました: {str(e)}"}
-
-
-@app.post("/api/topics")
-async def create_topic(topic_text: str, db: Session = Depends(get_db)):
-    """お題作成API"""
-    if not topic_text.strip():
-        raise HTTPException(status_code=400, detail="お題テキストが空です")
-
-    try:
-        topic = OgiriTopicCRUD.create(db, topic_text.strip())
-        return {
-            "id": topic.id,
-            "topic_text": topic.topic_text,
-            "message": "お題を作成しました",
-        }
-    except Exception as e:
-        print(f"お題作成エラー: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# 位置設定のAPIエンドポイント
-@app.get("/api/display/position")
-async def get_display_position():
-    """表示位置設定を取得"""
-    try:
-        settings = get_position_settings()
-        return settings
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"位置設定取得エラー: {str(e)}")
-
-
-@app.get("/api/test")
-async def test_endpoint():
-    """テストエンドポイント"""
-    return {"message": "API is working"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
-
-
-@app.post("/api/scraping/collect-news")
-async def collect_news(
-    source: str = "yahoo",  # yahoo or nhk
-    max_articles: int = 5,
-    db: Session = Depends(get_db),
-):
-    """ニュース記事を収集"""
-
-    if max_articles > 20:
-        raise HTTPException(
-            status_code=400, detail="一度に取得できる記事数は20件までです"
-        )
-
-    try:
-        # スクレイパー選択
-        if source.lower() == "yahoo":
-            scraper = YahooNewsScraper()
-        elif source.lower() == "nhk":
-            scraper = NHKNewsScraper()
-        else:
-            raise HTTPException(
-                status_code=400, detail="サポートされていないニュースソースです"
-            )
-
-        # 記事収集
-        articles = scraper.scrape_articles(max_articles)
-
-        if not articles:
-            return {"message": "記事が取得できませんでした", "count": 0}
-
-        # データベースに保存
-        saved_count = 0
-        for article in articles:
-            try:
-                # 既存チェック（URLで重複回避）
-                existing = (
-                    db.query(NewsArticleModel)
-                    .filter(NewsArticleModel.url == article.url)
-                    .first()
-                )
-                if not existing:
-                    NewsArticleCRUD.create(
-                        db,
-                        title=article.title,
-                        content=article.content,
-                        url=article.url,
-                        source=article.source,
-                    )
-                    saved_count += 1
-                else:
-                    print(f"記事は既に存在します: {article.url}")
-            except Exception as e:
-                print(f"記事保存エラー: {e}")
-                continue
-
-        return {
-            "message": f"{source}ニュースから{saved_count}件の新しい記事を収集しました",
-            "source": source,
-            "collected": len(articles),
-            "saved": saved_count,
-            "articles": [
-                {"title": a.title, "url": a.url} for a in articles[:3]
-            ],  # 最初の3件のタイトル
-        }
-
-    except Exception as e:
-        print(f"ニュース収集エラー: {e}")
-        raise HTTPException(status_code=500, detail=f"ニュース収集エラー: {str(e)}")
-
-
-@app.post("/api/scraping/extract-words")
-async def extract_words_from_articles(
-    max_articles: int = 10, db: Session = Depends(get_db)
-):
-    """記事から単語を抽出"""
-
-    try:
-        # 最新の記事を取得
-        articles = NewsArticleCRUD.get_all(db, limit=max_articles)
-
-        if not articles:
-            raise HTTPException(status_code=404, detail="記事が見つかりません")
-
-        # テキスト処理と単語抽出
-        processor = TextProcessor()
-        extractor = MeCabWordExtractor()
-
-        extracted_count = 0
-        all_words = []
-        processed_articles = 0
-
-        for article in articles:
-            try:
-                # テキスト前処理
-                clean_title = processor.clean_text(article.title)
-                clean_content = processor.clean_text(article.content)
-                combined_text = f"{clean_title} {clean_content}"
-
-                # 単語抽出
-                extracted = extractor.extract_words(combined_text)
-
-                # データベースに保存
-                for category, words in extracted.items():
-                    for word in words:
-                        if len(word) >= 2:  # 2文字以上の単語のみ
-                            ExtractedWordCRUD.create_or_increment(
-                                db,
-                                word=word,
-                                word_type=category,
-                                source_article_id=article.id,
-                            )
-                            all_words.append(word)
-                            extracted_count += 1
-
-                processed_articles += 1
-
-            except Exception as e:
-                print(f"記事処理エラー (ID: {article.id}): {e}")
-                continue
-
-        # 頻出単語統計
-        frequent_words = (
-            extractor.get_frequent_words([" ".join(all_words)]) if all_words else {}
-        )
-
-        return {
-            "message": f"{processed_articles}件の記事から{extracted_count}個の単語を抽出しました",
-            "processed_articles": processed_articles,
-            "extracted_words": extracted_count,
-            "top_words": dict(list(frequent_words.items())[:10]),
-            "word_categories": {
-                "proper_nouns": len([w for w in all_words if len(w) >= 2]),
-                "common_nouns": len([w for w in all_words if len(w) >= 2]),
-                "keywords": len([w for w in all_words if len(w) >= 2]),
-            },
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"単語抽出エラー: {e}")
-        raise HTTPException(status_code=500, detail=f"単語抽出エラー: {str(e)}")
-
-
-@app.post("/api/scraping/full-pipeline")
-async def run_full_scraping_pipeline(
-    source: str = "yahoo", max_articles: int = 5, db: Session = Depends(get_db)
-):
-    """完全なスクレイピングパイプライン（収集→単語抽出）"""
-
-    try:
-        # Step 1: ニュース収集
-        collect_result = await collect_news(source, max_articles, db)
-
-        if collect_result["saved"] == 0:
-            return {
-                "message": "新しい記事がありませんでした（既存記事のみ）",
-                "news_collection": collect_result,
-                "word_extraction": {"extracted_words": 0},
-            }
-
-        # Step 2: 単語抽出（新しい記事のみ）
-        extract_result = await extract_words_from_articles(collect_result["saved"], db)
-
-        return {
-            "message": "スクレイピングパイプライン完了",
-            "news_collection": collect_result,
-            "word_extraction": extract_result,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"パイプラインエラー: {e}")
-        raise HTTPException(status_code=500, detail=f"パイプラインエラー: {str(e)}")
-
-
-@app.get("/api/scraping/stats")
-async def get_scraping_stats(db: Session = Depends(get_db)):
-    """スクレイピング統計情報"""
-
-    try:
-        # 基本統計
-        total_articles = NewsArticleCRUD.get_count(db)
-        total_words = db.query(ExtractedWord).count()
-
-        # ソース別統計
-        source_stats = {}
-        try:
-            sources = (
-                db.query(NewsArticleModel.source, func.count(NewsArticleModel.id))
-                .group_by(NewsArticleModel.source)
-                .all()
-            )
-            for source, count in sources:
-                source_stats[source or "不明"] = count
-        except Exception as e:
-            print(f"ソース統計エラー: {e}")
-            source_stats = {"エラー": "統計取得失敗"}
-
-        # 頻出単語トップ10
-        word_stats = []
-        try:
-            top_words = ExtractedWordCRUD.get_frequent_words(db, 10)
-            word_stats = [
-                {"word": w.word, "frequency": w.frequency, "type": w.word_type}
-                for w in top_words
-            ]
-        except Exception as e:
-            print(f"単語統計エラー: {e}")
-
-        # 最新記事
-        recent_stats = []
-        try:
-            recent_articles = NewsArticleCRUD.get_all(db, limit=5)
-            recent_stats = [
-                {
-                    "title": article.title[:50] + "..."
-                    if len(article.title) > 50
-                    else article.title,
-                    "source": article.source,
-                    "created_at": article.created_at.strftime("%Y-%m-%d %H:%M"),
-                }
-                for article in recent_articles
-            ]
-        except Exception as e:
-            print(f"最新記事統計エラー: {e}")
-
-        return {
-            "total_articles": total_articles,
-            "total_words": total_words,
-            "source_distribution": source_stats,
-            "top_words": word_stats,
-            "recent_articles": recent_stats,
-        }
-
-    except Exception as e:
-        print(f"統計取得エラー: {e}")
-        raise HTTPException(status_code=500, detail=f"統計取得エラー: {str(e)}")
 
 
 @app.get("/display")
 async def display_page(request: Request, db: Session = Depends(get_db)):
-    """単語表示ページ"""
-    words_obj = DisplayWordCRUD.get_all(db)
-    # オブジェクトをディクショナリに変換
-    words = [
-        {
-            "id": w.id,
-            "word": w.word,
-            "pos": w.pos,
-            "created_at": w.created_at.isoformat(),
-        }
-        for w in words_obj
-    ]
+    """表示画面"""
+    words = DisplayWordCRUD.get_all(db)
+    display_settings = get_position_settings()
+    word_settings = get_word_settings()
+
     return templates.TemplateResponse(
-        "display.html", {"request": request, "title": "単語表示", "words": words}
+        "display.html",
+        {
+            "request": request,
+            "title": settings.app_name,
+            "words": [{"word": w.word, "pos": w.pos} for w in words],
+            "top_position": display_settings.get("top_position", 50),
+            "font_size": display_settings.get("font_size", 48),
+            "width_px": display_settings.get("width_px", 800),
+            "word_top_position": word_settings.get("word_top_position", 20),
+        },
     )
 
 
-# APIルートセクションに追加
+# ============================================
+# DisplayWord APIエンドポイント
+# ============================================
+
+
 @app.get("/api/display/words")
 async def get_display_words(db: Session = Depends(get_db)):
     """表示用単語の一覧を取得"""
@@ -700,15 +248,24 @@ async def delete_display_word(word_id: int, db: Session = Depends(get_db)):
     return {"message": "単語を削除しました"}
 
 
+@app.delete("/api/display/words/all")
+async def delete_all_display_words(db: Session = Depends(get_db)):
+    """登録済み単語を全削除"""
+    try:
+        DisplayWordCRUD.delete_all(db)
+        return {"message": "すべての単語を削除しました"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/display/sentence")
 async def create_display_words_from_sentence(
     sentence: str = Form(...), db: Session = Depends(get_db)
 ):
+    """文章から単語を抽出して登録"""
     if not sentence.strip():
         raise HTTPException(status_code=400, detail="文章が空です")
     try:
-        import re, MeCab
-
         tagger = MeCab.Tagger("")
         node = tagger.parseToNode(sentence)
 
@@ -719,699 +276,46 @@ async def create_display_words_from_sentence(
 
         picked = []
         while node:
-            surface = (node.surface or "").strip()  # ← 必ず元表記
-            feat = node.feature or ""
-            head = feat.split(",")[0] if feat else ""
-            if head in target_heads and surface and allow_re.match(surface):
-                exists = (
-                    db.query(DisplayWord)
-                    .filter(DisplayWord.word == surface, DisplayWord.pos == head)
-                    .first()
-                )
-                if not exists:
-                    DisplayWordCRUD.create(db, word=surface, pos=head)
-                picked.append({"word": surface, "pos": head})
-            node = node.next
-
-        if not picked:
-            raise HTTPException(
-                status_code=400, detail="対象品詞が抽出されませんでした"
-            )
-
-        return {
-            "nouns": [it["word"] for it in picked],
-            "words": picked,
-            "message": "品詞付きで抽出・追加しました",
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# 先頭付近（既存のMarkovModelの代わりに）に追加
-import json, os, random
-import MeCab
-
-TOK_MARKOV_PATH = "app/data/markov_token_model.json"
-LLM_LEARNED_DATA_PATH = "app/data/llm_learned_data.json"
-os.makedirs("app/data", exist_ok=True)
-
-
-class TokenMarkovModel:
-    def __init__(self):
-        self.chain = {}  # (t1, t2) -> [t3,...]
-        self.tagger = MeCab.Tagger("")
-
-    def tokenize(self, text: str) -> list[str]:
-        node = self.tagger.parseToNode(text or "")
-        toks = []
-        while node:
-            s = (node.surface or "").strip()
-            if s:
-                toks.append(s)
-            node = node.next
-        return toks
-
-    def train_lines(self, lines: list[str]):
-        for line in lines:
-            toks = self.tokenize(line.strip())
-            if not toks:
-                continue
-            # BOS/BOS で開始、EOS で終了（トークン連鎖）
-            seq = ["<BOS>", "<BOS>"] + toks + ["<EOS>"]
-            for i in range(len(seq) - 2):
-                key = (seq[i], seq[i + 1])
-                nxt = seq[i + 2]
-                self.chain.setdefault(key, []).append(nxt)
-
-    def generate(self, seed_tokens: list[str] | None = None, max_len: int = 60) -> str:
-        if not self.chain:
-            return ""
-        # 開始
-        if seed_tokens and len(seed_tokens) >= 2:
-            key = (seed_tokens[0], seed_tokens[1])
-            if key not in self.chain:
-                key = random.choice(list(self.chain.keys()))
-        else:
-            key = random.choice(list(self.chain.keys()))
-        out = [key[0], key[1]]
-        for _ in range(max_len):
-            nxts = self.chain.get(key)
-            if not nxts:
-                break
-            nxt = random.choice(nxts)
-            out.append(nxt)
-            if nxt == "$":
-                break
-            key = (key[1], nxt)
-        s = "".join(out)
-        return s.strip("^$")
-
-    def dump(self, path: str):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(
-                {"\t".join(k): v for k, v in self.chain.items()}, f, ensure_ascii=False
-            )
-
-    def load(self, path: str):
-        if not os.path.exists(path):
-            return
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.chain = {}
-        for k, v in data.items():
-            t1, t2 = k.split("\t")
-            self.chain[(t1, t2)] = v
-
-
-token_markov = TokenMarkovModel()
-token_markov.load(TOK_MARKOV_PATH)
-
-# 先頭付近（既存のトークンMarkovを置換）
-import json, os, random, MeCab, re
-from collections import defaultdict
-
-POS_MODEL_PATH = "app/data/markov_pos_model.json"
-os.makedirs("app/data", exist_ok=True)
-
-# 出力を弱めるPOS（連鎖には使うが、文面には極力出さない）
-WEAK_OUTPUT_POS = {"助詞", "助動詞", "記号"}
-
-# 文末判定
-SENT_END_RE = re.compile(r"[。．.!！?？]$")
-
-
-class POSMarkovModel:
-    # chain_pos: (pos1,pos2) -> [pos3,...]
-    # emit: pos -> [surface,...]
-    def __init__(self):
-        self.chain_pos = defaultdict(list)
-        self.emit = defaultdict(list)
-        self.tagger = MeCab.Tagger("")
-
-    def _morphs(self, text: str):
-        node = self.tagger.parseToNode(text or "")
-        while node:
             surface = (node.surface or "").strip()
             feat = node.feature or ""
-            if surface and feat:
-                pos = feat.split(",")[0]
-                yield surface, pos
+            parts = feat.split(",")
+            if len(parts) < 2:
+                node = node.next
+                continue
+
+            pos = parts[0]
+            if pos not in target_heads:
+                node = node.next
+                continue
+            if not surface or not allow_re.match(surface):
+                node = node.next
+                continue
+
+            picked.append({"word": surface, "pos": pos})
             node = node.next
 
-    def train_lines(self, lines: list[str]):
-        for line in lines:
-            toks = list(self._morphs(line.strip()))
-            if not toks:
-                continue
-            pos_seq = ["<BOS>", "<BOS>"] + [p for _, p in toks] + ["<EOS>"]
-            for i in range(len(pos_seq) - 2):
-                key = (pos_seq[i], pos_seq[i + 1])
-                self.chain_pos[key].append(pos_seq[i + 2])
-            for surf, pos in toks:
-                self.emit[pos].append(surf)
-
-    def _sample(self, arr):
-        return random.choice(arr) if arr else None
-
-    def generate(
-        self, seed_tokens: list[tuple[str, str]] | None = None, max_steps: int = 60
-    ) -> str:
-        # 初期キー（POS二連）
-        if seed_tokens and len(seed_tokens) >= 2:
-            p1, p2 = seed_tokens[0][1], seed_tokens[1][1]
-            key = (p1, p2)
-            if key not in self.chain_pos:
-                key = self._sample(list(self.chain_pos.keys()))
-        else:
-            key = self._sample(list(self.chain_pos.keys()))
-        if not key:
-            return ""
-
-        out_surfaces = []
-        steps = 0
-        while steps < max_steps:
-            steps += 1
-            nxt_pos = self._sample(self.chain_pos.get(key, []))
-            if not nxt_pos or nxt_pos == "<EOS>":
-                break
-            # 出力語のサンプリング（弱い品詞は低確率で出す）
-            cand = self.emit.get(nxt_pos, [])
-            if not cand:
-                # エミッションが無いPOSはスキップ
-                key = (key[1], nxt_pos)
-                continue
-            surface = self._sample(cand)
-            if nxt_pos in WEAK_OUTPUT_POS:
-                # 20%だけ出力（つなぎとして最小限）
-                if random.random() < 0.2:
-                    out_surfaces.append(surface)
-            else:
-                out_surfaces.append(surface)
-
-            # 句点等で文を締める
-            if SENT_END_RE.search(surface):
-                break
-
-            key = (key[1], nxt_pos)
-
-        # スペース不要（単純連結）
-        return "".join(out_surfaces).strip()
-
-    def dump(self, path: str):
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "chain_pos": {"\t".join(k): v for k, v in self.chain_pos.items()},
-                    "emit": self.emit,
-                },
-                f,
-                ensure_ascii=False,
-            )
-
-    def load(self, path: str):
-        if not os.path.exists(path):
-            return
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.chain_pos = defaultdict(list)
-        for k, v in data.get("chain_pos", {}).items():
-            p1, p2 = k.split("\t")
-            self.chain_pos[(p1, p2)] = v
-        self.emit = defaultdict(list, data.get("emit", {}))
-
-    # ユーティリティ：シード用にdisplay_wordsからPOS推定が無い場合でも形だけ持たせる
-    def guess_pos(self, text: str) -> list[tuple[str, str]]:
-        return list(self._morphs(text))
-
-
-pos_markov = POSMarkovModel()
-pos_markov.load(POS_MODEL_PATH)
-
-
-class LLMLearning:
-    """LLM学習用クラス（完全リセット版）"""
-
-    def __init__(self):
-        self.templates = []  # 学習したテンプレート（最大10個）
-        self.keywords = []  # 学習したキーワード（最大20個）
-
-    def learn_from_odai(self, odai_text: str):
-        """お題から学習（完全にシンプル化）"""
-        if not odai_text.strip():
-            return
-
-        # テンプレート学習のみ（厳格な制限）
-        self._learn_templates_strict(odai_text)
-
-    def _learn_templates_strict(self, odai_text: str):
-        """完全にゼロから学習（事前定義パターンなし）"""
-        if len(self.templates) >= 50:  # より多くのパターンを学習
-            return
-
-        import re
-
-        # 学習データから動的にパターンを抽出
-        # 「○○」を含むパターンを探す
-        if "○○" in odai_text:
-            # 既にテンプレート形式の場合はそのまま学習
-            if odai_text not in self.templates:
-                self.templates.append(odai_text)
-                print(f"テンプレート追加: {odai_text} (現在: {len(self.templates)}個)")
-        else:
-            # 通常のお題からパターンを抽出
-            # 名詞部分を「○○」に置き換えてパターン化
-            self._extract_pattern_from_odai(odai_text)
-
-    def _extract_pattern_from_odai(self, odai_text: str):
-        """お題からパターンを完全にゼロから抽出（事前定義パターンなし）"""
-        import re
-
-        # お題の品質チェック
-        if not self._is_valid_odai(odai_text):
-            return
-
-        # 完全にゼロからパターンを抽出
-        # お題の構造を分析してパターンを作成
-        self._analyze_odai_structure(odai_text)
-
-    def _analyze_odai_structure(self, odai_text: str):
-        """お題の構造を分析してパターンを抽出"""
-        import re
-
-        # お題の長さと構造を分析
-        if len(odai_text) < 4 or len(odai_text) > 20:
-            return
-
-        # 既存のテンプレートと重複しないかチェック
-        if odai_text in self.templates:
-            return
-
-        # お題の構造パターンを動的に抽出
-        # 例：「AIの秘密」→「○○の秘密」
-        pattern = self._create_pattern_from_odai(odai_text)
-
-        if pattern and pattern not in self.templates:
-            self.templates.append(pattern)
-            print(f"構造分析: {odai_text} -> {pattern} (現在: {len(self.templates)}個)")
-
-    def _create_pattern_from_odai(self, odai_text: str):
-        """お題からパターンを動的に作成"""
-        import re
-
-        # 一般的な構造パターンを動的に検出
-        # 「名詞 + の + 形容詞/名詞」パターン
-        if re.search(r"(.+?)の(.+?)$", odai_text):
-            match = re.search(r"(.+?)の(.+?)$", odai_text)
-            if match and len(match.group(1)) >= 2 and len(match.group(1)) <= 8:
-                return f"○○の{match.group(2)}"
-
-        # 「名詞 + あるある」パターン
-        if re.search(r"(.+?)あるある$", odai_text):
-            match = re.search(r"(.+?)あるある$", odai_text)
-            if match and len(match.group(1)) >= 2 and len(match.group(1)) <= 8:
-                return "○○あるある"
-
-        # 「こんな + 名詞 + は嫌だ」パターン
-        if re.search(r"こんな(.+?)は嫌だ$", odai_text):
-            match = re.search(r"こんな(.+?)は嫌だ$", odai_text)
-            if match and len(match.group(1)) >= 2 and len(match.group(1)) <= 8:
-                return "こんな○○は嫌だ"
-
-        # 「名詞 + で困ること」パターン
-        if re.search(r"(.+?)で困ること$", odai_text):
-            match = re.search(r"(.+?)で困ること$", odai_text)
-            if match and len(match.group(1)) >= 2 and len(match.group(1)) <= 8:
-                return "○○で困ること"
-
-        # その他の構造パターン
-        # 「名詞 + の + 名詞」パターン（一般的）
-        if re.search(r"(.+?)の(.+?)$", odai_text):
-            match = re.search(r"(.+?)の(.+?)$", odai_text)
-            if match and len(match.group(1)) >= 2 and len(match.group(1)) <= 8:
-                return f"○○の{match.group(2)}"
-
-        return None
-
-    def _is_valid_odai(self, odai_text: str) -> bool:
-        """お題が有効かどうかをチェック"""
-        import re
-
-        # 空文字列や短すぎるものは除外
-        if not odai_text or len(odai_text.strip()) < 3:
-            return False
-
-        # 特殊文字や記号が多すぎるものは除外
-        special_chars = r"[\\\/\*\#\@\$\%\^\&\+\=\|\[\]\{\}\(\)\<\>\?\!]"
-        if len(re.findall(special_chars, odai_text)) > len(odai_text) * 0.3:
-            return False
-
-        # 数字のみのものは除外
-        if odai_text.strip().isdigit():
-            return False
-
-        # 意味不明な文字列は除外
-        if any(char in odai_text for char in ["\1", "\2", "○", "●"]):
-            return False
-
-        return True
-
-    def generate_odai(self, seeds: list, count: int) -> list:
-        """お題らしい文章を生成（完全に学習データのみ使用）"""
-        results = []
-
-        # 学習したテンプレートのみを使用（事前定義パターンなし）
-        patterns = self.templates
-
-        # 学習データが不足している場合はエラー
-        if not patterns:
-            print("⚠️ 学習データが不足しています。まず学習を実行してください。")
-            return ["学習データが不足しています。まず学習を実行してください。"]
-
-        # シード単語を適切な名詞にフィルタリング
-        good_seeds = [seed for seed in seeds if self._is_good_seed(seed)]
-        if not good_seeds:
-            good_seeds = seeds[:5]  # フォールバック
-
-        # パターンから生成
-        for i in range(count):
-            if not patterns or not good_seeds:
-                break
-
-            pattern = random.choice(patterns)
-            seed = random.choice(good_seeds)
-            odai = pattern.replace("○○", seed)
-
-            # 品質チェック
-            if (
-                len(odai) >= 4
-                and len(odai) <= 20
-                and odai not in results
-                and not odai.endswith("。")
-                and not odai.startswith("。")
-            ):
-                results.append(odai)
-
-        # 学習データのみで生成（補完なし）
-        print(f"学習データから生成: {len(results)}個のお題を生成")
-        return results[:count]
-
-    def _is_good_seed(self, seed: str) -> bool:
-        """シード単語がお題に適しているかチェック"""
-        if not seed or len(seed) < 2 or len(seed) > 8:
-            return False
-
-        # 数字のみは除外
-        if seed.isdigit():
-            return False
-
-        # 助詞・助動詞は除外
-        particles = {
-            "の",
-            "が",
-            "は",
-            "を",
-            "に",
-            "で",
-            "と",
-            "から",
-            "まで",
-            "も",
-            "だけ",
-            "しか",
-        }
-        if seed in particles:
-            return False
-
-        return True
-
-    def dump(self, path: str):
-        """学習データを保存"""
-        data = {
-            "templates": self.templates,
-            "keywords": self.keywords,
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-
-    def load(self, path: str):
-        """学習データを読み込み"""
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.templates = data.get("templates", [])
-                self.keywords = data.get("keywords", [])
-        except FileNotFoundError:
-            # ファイルが存在しない場合は空で初期化
-            self.templates = []
-            self.keywords = []
-
-
-llm_learning = LLMLearning()
-llm_learning.load(LLM_LEARNED_DATA_PATH)
-
-
-# アップロード学習エンドポイント（形態素版）
-@app.post("/api/odai/train")
-async def train_markov(file: UploadFile = File(...)):
-    try:
-        print(f"マルコフ学習開始: ファイル名={file.filename}")
-
-        content = (await file.read()).decode("utf-8", errors="ignore")
-        lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
-        print(f"ファイル読み込み完了: {len(lines)}行")
-
-        if not lines:
-            raise HTTPException(status_code=400, detail="有効な行がありません")
-
-        print("マルコフ学習中...")
-        pos_markov.train_lines(lines)
-        print("学習データを保存中...")
-        pos_markov.dump(POS_MODEL_PATH)
-
-        result = {
-            "message": f"POSモデル学習完了: {len(lines)} 行",
-            "chain_size": len(pos_markov.chain_pos),
-        }
-        print(f"マルコフ学習完了: {result}")
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"マルコフ学習エラー: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# 生成エンドポイント（形態素モデル使用）
-@app.post("/api/odai/generate")
-async def generate_odai(
-    count: int = Form(30),
-    use_display_words: bool = Form(True),
-    db: Session = Depends(get_db),
-):
-    try:
-        if not pos_markov.chain_pos:
-            pos_markov.load(POS_MODEL_PATH)
-        if not pos_markov.chain_pos:
-            raise HTTPException(status_code=400, detail="POSマルコフモデルが未学習です")
-
-        # 使う単語は display_words のみ
-        words = DisplayWordCRUD.get_all(db)
-        seeds = [w.word for w in words]
-        if not seeds:
-            raise HTTPException(
-                status_code=400,
-                detail="display_wordsが空です（文章から抽出して追加してください）",
-            )
-
-        # シード単語をランダムに選択
-        selected_seeds = random.sample(seeds, min(len(seeds), 5))
-
-        # マルコフ連鎖でお題を生成（品質重視）
-        results = []
-        max_attempts = count * 3  # 品質向上のため試行回数を増やす
-        attempts = 0
-
-        while len(results) < count and attempts < max_attempts:
-            attempts += 1
+        added_count = 0
+        for item in picked:
             try:
-                # シード単語からPOS推定
-                seed_tokens = pos_markov.guess_pos(random.choice(selected_seeds))
-                if seed_tokens:
-                    generated = pos_markov.generate(
-                        seed_tokens, max_steps=20
-                    )  # ステップ数を制限
-                else:
-                    # シード単語が使えない場合はランダム生成
-                    generated = pos_markov.generate(None, max_steps=20)
+                DisplayWordCRUD.create(db, item["word"], item["pos"])
+                added_count += 1
+            except Exception:
+                pass
 
-                if generated and len(generated.strip()) > 0:
-                    generated = generated.strip()
-                    # 品質チェック
-                    if (
-                        len(generated) >= 3
-                        and len(generated) <= 25
-                        and generated not in results
-                        and not generated.endswith("。")  # 句点で終わらない
-                        and not generated.startswith("。")
-                    ):  # 句点で始まらない
-                        results.append(generated)
-            except Exception as e:
-                print(f"生成エラー: {e}")
-                continue
-
-        print(f"マルコフ生成結果: {len(results)}個")
-        print(f"生成されたお題: {results[:3] if results else 'なし'}")
-
-        return {"count": len(results), "odai": results}
-    except HTTPException:
-        raise
+        return {
+            "message": f"{added_count}個の単語を登録しました",
+            "added_count": added_count,
+            "extracted_words": picked,
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# LLM生成エンドポイント
+# ============================================
+# ConfirmedOdai APIエンドポイント
+# ============================================
 
 
-# LLM学習エンドポイント
-@app.post("/api/odai/train-llm")
-async def train_llm(file: UploadFile = File(...)):
-    try:
-        print(f"LLM学習開始: ファイル名={file.filename}")
-
-        content = (await file.read()).decode("utf-8", errors="ignore")
-        lines = [ln.strip() for ln in content.splitlines() if ln.strip()]
-        print(f"ファイル読み込み完了: {len(lines)}行")
-
-        if not lines:
-            raise HTTPException(status_code=400, detail="有効な行がありません")
-
-        print("LLM学習データに追加中...")
-        print(
-            f"学習前: テンプレート={len(llm_learning.templates)}, キーワード={len(llm_learning.keywords)}"
-        )
-        # LLM学習データに追加
-        for i, line in enumerate(lines):
-            if i % 100 == 0:
-                print(f"学習進行中: {i}/{len(lines)}")
-            llm_learning.learn_from_odai(line)
-        print(
-            f"学習後: テンプレート={len(llm_learning.templates)}, キーワード={len(llm_learning.keywords)}"
-        )
-
-        print("学習データを保存中...")
-        # 学習データを保存
-        llm_learning.dump(LLM_LEARNED_DATA_PATH)
-
-        result = {
-            "message": f"LLM学習完了: {len(lines)} 行",
-            "templates": len(llm_learning.templates),
-            "keywords": len(llm_learning.keywords),
-        }
-        print(f"LLM学習完了: {result}")
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"LLM学習エラー: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/odai/generate-llm")
-async def generate_odai_llm(
-    count: int = Form(30),
-    use_display_words: bool = Form(True),
-    db: Session = Depends(get_db),
-):
-    try:
-        # 生成数を制限（パフォーマンス向上）
-        count = min(count, 50)
-
-        # 使う単語は display_words のみ
-        words = DisplayWordCRUD.get_all(db)
-        seeds = [w.word for w in words]
-        if not seeds:
-            raise HTTPException(
-                status_code=400,
-                detail="display_wordsが空です（文章から抽出して追加してください）",
-            )
-
-        # 学習したデータを使用してお題を生成
-        print(f"LLM生成開始: seeds={seeds[:5]}, count={count}")
-        print(
-            f"学習データ: templates={len(llm_learning.templates)}, keywords={len(llm_learning.keywords)}"
-        )
-
-        results = llm_learning.generate_odai(seeds, count)
-
-        print(f"LLM生成結果: {len(results)}個")
-        print(f"生成されたお題: {results[:3] if results else 'なし'}")
-
-        return {"count": len(results), "odai": results, "method": "llm"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"LLM生成エラー: {e}")
-        raise HTTPException(status_code=500, detail=f"LLM生成エラー: {str(e)}")
-
-
-# モデル保存・読み込みエンドポイント
-@app.post("/api/odai/save-model")
-async def save_llm_model():
-    """LLMモデルを外部ファイルに保存"""
-    try:
-        # 現在の学習データを保存
-        llm_learning.dump(LLM_LEARNED_DATA_PATH)
-
-        # ファイルサイズを取得
-        import os
-
-        file_size = (
-            os.path.getsize(LLM_LEARNED_DATA_PATH)
-            if os.path.exists(LLM_LEARNED_DATA_PATH)
-            else 0
-        )
-
-        return {
-            "message": "LLMモデルを保存しました",
-            "file_path": LLM_LEARNED_DATA_PATH,
-            "file_size": file_size,
-            "templates": len(llm_learning.templates),
-            "keywords": len(llm_learning.keywords),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル保存エラー: {str(e)}")
-
-
-@app.post("/api/odai/load-model")
-async def load_llm_model():
-    """外部ファイルからLLMモデルを読み込み"""
-    try:
-        # 学習データを読み込み
-        llm_learning.load(LLM_LEARNED_DATA_PATH)
-
-        return {
-            "message": "LLMモデルを読み込みました",
-            "templates": len(llm_learning.templates),
-            "keywords": len(llm_learning.keywords),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル読み込みエラー: {str(e)}")
-
-
-@app.get("/api/odai/model-info")
-async def get_model_info():
-    """現在のモデル情報を取得"""
-    try:
-        return {
-            "templates": len(llm_learning.templates),
-            "keywords": len(llm_learning.keywords),
-            "file_exists": os.path.exists(LLM_LEARNED_DATA_PATH),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル情報取得エラー: {str(e)}")
-
-
-# 確定お題関連のAPIエンドポイント
 @app.get("/api/confirmed-odais")
 async def get_confirmed_odais(
     skip: int = 0, limit: int = 100, db: Session = Depends(get_db)
@@ -1484,7 +388,6 @@ async def activate_odai(odai_id: int, db: Session = Depends(get_db)):
     try:
         success = ConfirmedOdaiCRUD.set_active(db, odai_id)
         if success:
-            # 出題中のお題の情報を取得
             active_odai = ConfirmedOdaiCRUD.get_active(db)
             return {
                 "message": "お題を出題中に設定しました",
@@ -1540,6 +443,11 @@ async def get_active_odai(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"出題中お題取得エラー: {str(e)}")
 
 
+# ============================================
+# 表示設定 APIエンドポイント
+# ============================================
+
+
 @app.get("/api/display/position")
 async def get_display_position():
     """表示設定を取得"""
@@ -1573,13 +481,856 @@ async def update_display_position(
         if success:
             return {
                 "message": "表示設定を更新しました",
-                "top_position": top_position,
-                "font_size": font_size,
-                "width_px": width_px,
+                "settings": get_position_settings(),
             }
         else:
-            raise HTTPException(status_code=500, detail="表示設定の保存に失敗しました")
+            raise HTTPException(status_code=500, detail="設定の保存に失敗しました")
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"表示設定更新エラー: {str(e)}")
+
+
+@app.post("/api/display/word-settings")
+async def update_word_settings(word_top_position: int = Form(...)):
+    """単語表示設定を更新"""
+    try:
+        if not (0 <= word_top_position <= 100):
+            raise HTTPException(
+                status_code=400, detail="位置は0-100の範囲で指定してください"
+            )
+
+        success = save_word_settings(word_top_position)
+        if success:
+            return {
+                "message": "単語表示設定を更新しました",
+                "settings": get_word_settings(),
+            }
+        else:
+            raise HTTPException(status_code=500, detail="設定の保存に失敗しました")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"単語表示設定更新エラー: {str(e)}")
+
+
+@app.get("/api/display/word-settings")
+async def get_word_display_settings():
+    """単語表示設定を取得"""
+    try:
+        settings = get_word_settings()
+        return settings
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"単語表示設定取得エラー: {str(e)}")
+
+
+# ============================================
+# お題評価 APIエンドポイント
+# ============================================
+
+
+@app.post("/api/odai/rate")
+async def rate_odai(
+    odai_text: str = Form(...),
+    rating: int = Form(...),
+    source: str = Form("unknown"),
+    feedback: str = Form(None),
+    db: Session = Depends(get_db),
+):
+    """お題を評価"""
+    try:
+        if not 1 <= rating <= 5:
+            raise HTTPException(
+                status_code=400, detail="評価は1-5の範囲で指定してください"
+            )
+
+        rating_obj = OdaiRatingCRUD.create(
+            db, odai_text=odai_text, rating=rating, source=source, feedback=feedback
+        )
+
+        # 第四の力の自動学習
+        auto_learned = False
+        if source == "fourth_force_context":
+            if rating >= 4:
+                try:
+                    learned = fourth_force_learner.learn_from_odai(odai_text)
+                    if learned:
+                        fourth_force_learner.save_learning_data(FOURTH_FORCE_DATA_PATH)
+                        auto_learned = True
+                except Exception as e:
+                    print(f"第四の力高評価自動学習エラー: {e}")
+
+        # 第五の力の自動学習
+        if source in ["fifth_force_ngram", "fifth_force_ngram_pos"]:
+            if rating >= 4:
+                try:
+                    learned = fifth_force_learner.learn_from_odai(odai_text)
+                    if learned:
+                        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
+                        auto_learned = True
+                except Exception as e:
+                    print(f"第五の力高評価自動学習エラー: {e}")
+
+        return {
+            "message": f"お題を評価しました（評価: {rating}）"
+            + (" - 自動学習も実行しました" if auto_learned else ""),
+            "auto_learned": auto_learned,
+            "rating": {
+                "id": rating_obj.id,
+                "odai_text": rating_obj.odai_text,
+                "rating": rating_obj.rating,
+                "source": rating_obj.source,
+                "created_at": rating_obj.created_at.isoformat(),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"評価エラー: {str(e)}")
+
+
+@app.get("/api/odai/ratings/high-rated")
+async def get_high_rated_odais(
+    min_rating: int = 4, limit: int = 50, db: Session = Depends(get_db)
+):
+    """高評価のお題を取得"""
+    try:
+        ratings = OdaiRatingCRUD.get_high_rated_odais(db, min_rating, limit)
+        return {
+            "ratings": [
+                {
+                    "id": rating.id,
+                    "odai_text": rating.odai_text,
+                    "rating": rating.rating,
+                    "source": rating.source,
+                    "feedback": rating.feedback,
+                    "created_at": rating.created_at.isoformat(),
+                }
+                for rating in ratings
+            ],
+            "count": len(ratings),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"高評価お題取得エラー: {str(e)}")
+
+
+@app.get("/api/odai/ratings/stats")
+async def get_rating_stats(db: Session = Depends(get_db)):
+    """評価統計を取得"""
+    try:
+        all_ratings = db.query(OdaiRating).all()
+
+        if not all_ratings:
+            return {
+                "total_count": 0,
+                "average_rating": 0,
+                "rating_distribution": {},
+                "source_distribution": {},
+            }
+
+        total = len(all_ratings)
+        avg = sum(r.rating for r in all_ratings) / total
+
+        rating_dist = {}
+        for i in range(1, 6):
+            rating_dist[str(i)] = len([r for r in all_ratings if r.rating == i])
+
+        source_dist = {}
+        for r in all_ratings:
+            source = r.source or "unknown"
+            source_dist[source] = source_dist.get(source, 0) + 1
+
+        return {
+            "total_count": total,
+            "average_rating": round(avg, 2),
+            "rating_distribution": rating_dist,
+            "source_distribution": source_dist,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"評価統計取得エラー: {str(e)}")
+
+
+# ============================================
+# 第四の力 APIエンドポイント
+# ============================================
+
+
+@app.post("/api/fourth-force/learn")
+async def learn_fourth_force_patterns(file: UploadFile = File(...)):
+    """第四の力の文脈学習"""
+    try:
+        if not file.filename.endswith((".txt", ".json")):
+            raise HTTPException(
+                status_code=400,
+                detail="テキストファイルまたはJSONファイルをアップロードしてください",
+            )
+
+        content = await file.read()
+        text_content = content.decode("utf-8")
+
+        if file.filename.endswith(".txt"):
+            lines = text_content.strip().split("\n")
+            learned_count = 0
+
+            for line in lines:
+                line = line.strip()
+                if line:
+                    learned = fourth_force_learner.learn_from_odai(line)
+                    if learned:
+                        learned_count += 1
+
+            fourth_force_learner.save_learning_data(FOURTH_FORCE_DATA_PATH)
+
+            return {
+                "message": f"第四の力: {learned_count}個のお題から学習しました",
+                "learned_count": learned_count,
+                "stats": fourth_force_learner.get_learning_stats(),
+            }
+
+        elif file.filename.endswith(".json"):
+            try:
+                data = json.loads(text_content)
+                if isinstance(data, list):
+                    learned_count = 0
+                    for item in data:
+                        odai_text = None
+                        if isinstance(item, str):
+                            odai_text = item
+                        elif isinstance(item, dict) and "odai_text" in item:
+                            odai_text = item["odai_text"]
+
+                        if odai_text:
+                            learned = fourth_force_learner.learn_from_odai(odai_text)
+                            if learned:
+                                learned_count += 1
+
+                    fourth_force_learner.save_learning_data(FOURTH_FORCE_DATA_PATH)
+
+                    return {
+                        "message": f"第四の力: {learned_count}個のお題から学習しました",
+                        "learned_count": learned_count,
+                        "stats": fourth_force_learner.get_learning_stats(),
+                    }
+                else:
+                    raise HTTPException(
+                        status_code=400, detail="JSONファイルの形式が正しくありません"
+                    )
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=400, detail="JSONファイルの解析に失敗しました"
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第四の力学習エラー: {str(e)}")
+
+
+@app.post("/api/fourth-force/generate")
+async def generate_fourth_force_odai(
+    count: int = Form(10), use_words: bool = Form(True), db: Session = Depends(get_db)
+):
+    """第四の力でお題を生成"""
+    try:
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "第四の力: 使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+                "stats": fourth_force_generator.get_generation_stats(),
+            }
+
+        generated_odais = fourth_force_generator.generate_from_words(
+            words_to_use, count=count
+        )
+
+        if not generated_odais:
+            return {
+                "error": "第四の力: お題の生成に失敗しました。学習データが不足している可能性があります。",
+                "generated_odais": [],
+                "stats": fourth_force_generator.get_generation_stats(),
+            }
+
+        return {
+            "message": f"第四の力: {len(generated_odais)}個のお題を生成しました",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": odai.get("source", "fourth_force_context"),
+                    "method": odai.get("method", "unknown"),
+                }
+                for odai in generated_odais
+            ],
+            "saved_count": 0,
+            "stats": fourth_force_generator.get_generation_stats(),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第四の力生成エラー: {str(e)}")
+
+
+@app.get("/api/fourth-force/stats")
+async def get_fourth_force_stats():
+    """第四の力の学習統計を取得"""
+    try:
+        return {
+            "learning_stats": fourth_force_learner.get_learning_stats(),
+            "generation_stats": fourth_force_generator.get_generation_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第四の力統計取得エラー: {str(e)}")
+
+
+@app.post("/api/fourth-force/reset")
+async def reset_fourth_force_learning():
+    """第四の力の学習データをリセット"""
+    try:
+        fourth_force_learner.reset()
+        fourth_force_learner.save_learning_data(FOURTH_FORCE_DATA_PATH)
+
+        return {
+            "message": "第四の力の学習データをリセットしました",
+            "stats": fourth_force_learner.get_learning_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第四の力リセットエラー: {str(e)}")
+
+
+@app.post("/api/fourth-force/learn-from-high-ratings")
+async def learn_fourth_force_from_high_ratings(
+    min_rating: int = Form(4), limit: int = Form(50), db: Session = Depends(get_db)
+):
+    """高評価のお題から第四の力を学習"""
+    try:
+        high_rated = OdaiRatingCRUD.get_high_rated_odais(db, min_rating, limit)
+
+        if not high_rated:
+            return {
+                "message": "高評価のお題が見つかりません",
+                "learned_count": 0,
+                "stats": fourth_force_learner.get_learning_stats(),
+            }
+
+        learned_count = 0
+        for rating in high_rated:
+            learned = fourth_force_learner.learn_from_odai(rating.odai_text)
+            if learned:
+                learned_count += 1
+
+        fourth_force_learner.save_learning_data(FOURTH_FORCE_DATA_PATH)
+
+        return {
+            "message": f"第四の力: 高評価のお題{learned_count}個から学習しました",
+            "learned_count": learned_count,
+            "stats": fourth_force_learner.get_learning_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第四の力高評価学習エラー: {str(e)}")
+
+
+@app.post("/api/fourth-force/save-model")
+async def save_fourth_force_model(
+    model_name: str = Form(...),
+    description: str = Form(""),
+):
+    """第四の力モデルを保存"""
+    try:
+        if not model_name.strip():
+            raise HTTPException(status_code=400, detail="モデル名が空です")
+
+        sanitized_name = re.sub(r'[^\w\-]', '_', model_name.strip())
+
+        model_dir = "app/data/fourth_force_models"
+        os.makedirs(model_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_file = os.path.join(model_dir, f"{sanitized_name}_{timestamp}.json")
+
+        model_data = {
+            "model_name": sanitized_name,
+            "description": description,
+            "created_at": datetime.now().isoformat(),
+            "learning_stats": fourth_force_learner.get_learning_stats(),
+            "context_patterns": {
+                k: dict(v) for k, v in fourth_force_learner.context_patterns.items()
+            },
+            "templates": fourth_force_learner.templates,
+            "word_info": dict(fourth_force_learner.word_info),
+        }
+
+        with open(model_file, "w", encoding="utf-8") as f:
+            json.dump(model_data, f, ensure_ascii=False, indent=2)
+
+        file_size = os.path.getsize(model_file)
+
+        return {
+            "message": f"第四の力モデル '{sanitized_name}' を保存しました",
+            "model_name": sanitized_name,
+            "file_path": model_file,
+            "file_size": file_size,
+            "learning_stats": fourth_force_learner.get_learning_stats(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル保存エラー: {str(e)}")
+
+
+@app.get("/api/fourth-force/models")
+async def list_fourth_force_models():
+    """保存された第四の力モデル一覧を取得"""
+    try:
+        model_dir = "app/data/fourth_force_models"
+        os.makedirs(model_dir, exist_ok=True)
+
+        models = []
+        for filename in os.listdir(model_dir):
+            if filename.endswith(".json"):
+                filepath = os.path.join(model_dir, filename)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        model_data = json.load(f)
+
+                    file_size = os.path.getsize(filepath)
+
+                    models.append({
+                        "filename": filename,
+                        "model_name": model_data.get("model_name", filename),
+                        "description": model_data.get("description", ""),
+                        "created_at": model_data.get("created_at", ""),
+                        "file_size": file_size,
+                        "learning_stats": model_data.get("learning_stats", {}),
+                    })
+                except Exception as e:
+                    print(f"モデルファイル読み込みエラー {filename}: {e}")
+
+        models.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
+        return {
+            "models": models,
+            "total_count": len(models),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル一覧取得エラー: {str(e)}")
+
+
+@app.post("/api/fourth-force/load-model")
+async def load_fourth_force_model(
+    model_name: str = Form(...), db: Session = Depends(get_db)
+):
+    """第四の力モデルを読み込み"""
+    try:
+        model_dir = "app/data/fourth_force_models"
+        model_file = None
+
+        for filename in os.listdir(model_dir):
+            if filename.startswith(model_name) and filename.endswith(".json"):
+                model_file = os.path.join(model_dir, filename)
+                break
+
+        if not model_file or not os.path.exists(model_file):
+            raise HTTPException(
+                status_code=404, detail=f"モデル '{model_name}' が見つかりません"
+            )
+
+        with open(model_file, "r", encoding="utf-8") as f:
+            model_data = json.load(f)
+
+        fourth_force_learner.context_patterns = defaultdict(
+            lambda: defaultdict(lambda: {"count": 0, "examples": []}),
+            {
+                k: defaultdict(lambda: {"count": 0, "examples": []}, v)
+                for k, v in model_data.get("context_patterns", {}).items()
+            },
+        )
+        fourth_force_learner.templates = model_data.get("templates", [])
+        fourth_force_learner.word_info = defaultdict(
+            lambda: {"pos": "", "examples": []}, model_data.get("word_info", {})
+        )
+
+        fourth_force_learner.save_learning_data(FOURTH_FORCE_DATA_PATH)
+
+        return {
+            "message": f"第四の力モデル '{model_name}' を読み込みました",
+            "model_name": model_data.get("model_name", model_name),
+            "description": model_data.get("description", ""),
+            "created_at": model_data.get("created_at", ""),
+            "learning_stats": fourth_force_learner.get_learning_stats(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル読み込みエラー: {str(e)}")
+
+
+@app.delete("/api/fourth-force/delete-model")
+async def delete_fourth_force_model(model_name: str = Form(...)):
+    """第四の力モデルを削除"""
+    try:
+        model_dir = "app/data/fourth_force_models"
+        model_file = None
+
+        for filename in os.listdir(model_dir):
+            if filename.startswith(model_name) and filename.endswith(".json"):
+                model_file = os.path.join(model_dir, filename)
+                break
+
+        if not model_file or not os.path.exists(model_file):
+            raise HTTPException(
+                status_code=404, detail=f"モデル '{model_name}' が見つかりません"
+            )
+
+        os.remove(model_file)
+
+        return {
+            "message": f"第四の力モデル '{model_name}' を削除しました",
+            "deleted_file": os.path.basename(model_file),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル削除エラー: {str(e)}")
+
+
+# ============================================
+# 第五の力（n-gram）APIエンドポイント
+# ============================================
+
+
+@app.post("/api/fifth-force/learn")
+async def learn_fifth_force_patterns(file: UploadFile = File(...)):
+    """第五の力（n-gram）の学習"""
+    try:
+        if not file.filename.endswith((".txt", ".json")):
+            raise HTTPException(
+                status_code=400,
+                detail="テキストファイルまたはJSONファイルをアップロードしてください",
+            )
+
+        content = await file.read()
+        text_content = content.decode("utf-8")
+
+        if file.filename.endswith(".txt"):
+            lines = text_content.strip().split("\n")
+            learned_count = 0
+
+            for line in lines:
+                line = line.strip()
+                if line:
+                    learned = fifth_force_learner.learn_from_odai(line)
+                    if learned:
+                        learned_count += 1
+
+            fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
+
+            return {
+                "message": f"第五の力（n-gram）: {learned_count}個のお題から学習しました",
+                "learned_count": learned_count,
+                "stats": fifth_force_learner.get_learning_stats(),
+            }
+
+        elif file.filename.endswith(".json"):
+            try:
+                data = json.loads(text_content)
+                if isinstance(data, list):
+                    learned_count = 0
+                    for item in data:
+                        odai_text = None
+                        if isinstance(item, str):
+                            odai_text = item
+                        elif isinstance(item, dict) and "odai_text" in item:
+                            odai_text = item["odai_text"]
+
+                        if odai_text:
+                            learned = fifth_force_learner.learn_from_odai(odai_text)
+                            if learned:
+                                learned_count += 1
+
+                    fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
+
+                    return {
+                        "message": f"第五の力（n-gram）: {learned_count}個のお題から学習しました",
+                        "learned_count": learned_count,
+                        "stats": fifth_force_learner.get_learning_stats(),
+                    }
+                else:
+                    raise HTTPException(
+                        status_code=400, detail="JSONファイルの形式が正しくありません"
+                    )
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=400, detail="JSONファイルの解析に失敗しました"
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第五の力学習エラー: {str(e)}")
+
+
+@app.post("/api/fifth-force/generate")
+async def generate_fifth_force_odai(
+    count: int = Form(10),
+    use_words: bool = Form(True),
+    temperature: float = Form(0.8),
+    db: Session = Depends(get_db),
+):
+    """第五の力（n-gram）でお題を生成（品詞ベース）"""
+    try:
+        # DBセッションを使ってgeneratorを作成
+        fifth_force_generator = FifthForceNgramGenerator(fifth_force_learner, db)
+
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "第五の力（n-gram POS）: 使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+                "stats": fifth_force_generator.get_generation_stats(),
+            }
+
+        generated_odais = fifth_force_generator.generate_from_words(
+            words_to_use, count=count, temperature=temperature
+        )
+
+        if not generated_odais:
+            return {
+                "error": "第五の力（n-gram POS）: お題の生成に失敗しました。学習データが不足している可能性があります。",
+                "generated_odais": [],
+                "stats": fifth_force_generator.get_generation_stats(),
+            }
+
+        return {
+            "message": f"第五の力（n-gram POS）: {len(generated_odais)}個のお題を生成しました",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": odai.get("source", "fifth_force_ngram_pos"),
+                    "method": odai.get("method", "ngram_pos"),
+                    "quality_score": odai.get("quality_score", 0.5),
+                }
+                for odai in generated_odais
+            ],
+            "saved_count": 0,
+            "stats": fifth_force_generator.get_generation_stats(),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第五の力生成エラー: {str(e)}")
+
+
+@app.get("/api/fifth-force/stats")
+async def get_fifth_force_stats(db: Session = Depends(get_db)):
+    """第五の力（n-gram）の学習統計を取得"""
+    try:
+        # DBセッションを使ってgeneratorを作成
+        fifth_force_generator = FifthForceNgramGenerator(fifth_force_learner, db)
+
+        return {
+            "learning_stats": fifth_force_learner.get_learning_stats(),
+            "generation_stats": fifth_force_generator.get_generation_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第五の力統計取得エラー: {str(e)}")
+
+
+@app.post("/api/fifth-force/reset")
+async def reset_fifth_force_learning():
+    """第五の力（n-gram）の学習データをリセット"""
+    try:
+        fifth_force_learner.reset()
+        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
+
+        return {
+            "message": "第五の力（n-gram）の学習データをリセットしました",
+            "stats": fifth_force_learner.get_learning_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第五の力リセットエラー: {str(e)}")
+
+
+@app.post("/api/fifth-force/learn-from-high-ratings")
+async def learn_fifth_force_from_high_ratings(
+    min_rating: int = Form(4), limit: int = Form(50), db: Session = Depends(get_db)
+):
+    """高評価のお題から第五の力（n-gram）を学習"""
+    try:
+        high_rated = OdaiRatingCRUD.get_high_rated_odais(db, min_rating, limit)
+
+        if not high_rated:
+            return {
+                "message": "高評価のお題が見つかりません",
+                "learned_count": 0,
+                "stats": fifth_force_learner.get_learning_stats(),
+            }
+
+        learned_count = 0
+        for rating in high_rated:
+            learned = fifth_force_learner.learn_from_odai(rating.odai_text)
+            if learned:
+                learned_count += 1
+
+        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
+
+        return {
+            "message": f"第五の力（n-gram）: 高評価のお題{learned_count}個から学習しました",
+            "learned_count": learned_count,
+            "stats": fifth_force_learner.get_learning_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第五の力高評価学習エラー: {str(e)}")
+
+
+@app.post("/api/fifth-force/save-model")
+async def save_fifth_force_model(
+    model_name: str = Form(...),
+    description: str = Form(""),
+):
+    """第五の力（n-gram）モデルを保存"""
+    try:
+        if not model_name.strip():
+            raise HTTPException(status_code=400, detail="モデル名が空です")
+
+        sanitized_name = re.sub(r"[^\w\-]", "_", model_name.strip())
+
+        model_dir = "app/data/fifth_force_models"
+        os.makedirs(model_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        model_file = os.path.join(model_dir, f"{sanitized_name}_{timestamp}.json")
+
+        # 学習データをそのまま保存
+        fifth_force_learner.save_learning_data(model_file)
+
+        file_size = os.path.getsize(model_file)
+
+        return {
+            "message": f"第五の力（n-gram）モデル '{sanitized_name}' を保存しました",
+            "model_name": sanitized_name,
+            "file_path": model_file,
+            "file_size": file_size,
+            "learning_stats": fifth_force_learner.get_learning_stats(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル保存エラー: {str(e)}")
+
+
+@app.get("/api/fifth-force/models")
+async def list_fifth_force_models():
+    """保存された第五の力（n-gram）モデル一覧を取得"""
+    try:
+        model_dir = "app/data/fifth_force_models"
+        os.makedirs(model_dir, exist_ok=True)
+
+        models = []
+        for filename in os.listdir(model_dir):
+            if filename.endswith(".json"):
+                filepath = os.path.join(model_dir, filename)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        model_data = json.load(f)
+
+                    file_size = os.path.getsize(filepath)
+
+                    # ファイル名から情報を抽出
+                    parts = filename.replace(".json", "").split("_")
+                    model_name = "_".join(parts[:-2]) if len(parts) > 2 else filename
+
+                    models.append(
+                        {
+                            "filename": filename,
+                            "model_name": model_name,
+                            "n": model_data.get("n", 3),
+                            "file_size": file_size,
+                            "vocabulary_size": len(model_data.get("word_freq", {})),
+                            "total_patterns": len(model_data.get("ngrams", {})),
+                        }
+                    )
+                except Exception as e:
+                    print(f"モデルファイル読み込みエラー {filename}: {e}")
+
+        models.sort(key=lambda x: x.get("filename", ""), reverse=True)
+
+        return {
+            "models": models,
+            "total_count": len(models),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル一覧取得エラー: {str(e)}")
+
+
+@app.post("/api/fifth-force/load-model")
+async def load_fifth_force_model(model_name: str = Form(...)):
+    """第五の力（n-gram）モデルを読み込み"""
+    try:
+        model_dir = "app/data/fifth_force_models"
+        model_file = None
+
+        for filename in os.listdir(model_dir):
+            if filename.startswith(model_name) and filename.endswith(".json"):
+                model_file = os.path.join(model_dir, filename)
+                break
+
+        if not model_file or not os.path.exists(model_file):
+            raise HTTPException(
+                status_code=404, detail=f"モデル '{model_name}' が見つかりません"
+            )
+
+        fifth_force_learner.load_learning_data(model_file)
+        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
+
+        return {
+            "message": f"第五の力（n-gram）モデル '{model_name}' を読み込みました",
+            "model_name": model_name,
+            "learning_stats": fifth_force_learner.get_learning_stats(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル読み込みエラー: {str(e)}")
+
+
+@app.delete("/api/fifth-force/delete-model")
+async def delete_fifth_force_model(model_name: str = Form(...)):
+    """第五の力（n-gram）モデルを削除"""
+    try:
+        model_dir = "app/data/fifth_force_models"
+        model_file = None
+
+        for filename in os.listdir(model_dir):
+            if filename.startswith(model_name) and filename.endswith(".json"):
+                model_file = os.path.join(model_dir, filename)
+                break
+
+        if not model_file or not os.path.exists(model_file):
+            raise HTTPException(
+                status_code=404, detail=f"モデル '{model_name}' が見つかりません"
+            )
+
+        os.remove(model_file)
+
+        return {
+            "message": f"第五の力（n-gram）モデル '{model_name}' を削除しました",
+            "deleted_file": os.path.basename(model_file),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"モデル削除エラー: {str(e)}")

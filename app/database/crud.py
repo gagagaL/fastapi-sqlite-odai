@@ -1,170 +1,11 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from .models import (
-    NewsArticle,
-    ExtractedWord,
-    OgiriTopic,
-    TrainingTopic,
     DisplayWord,
     ConfirmedOdai,
+    OdaiRating,
 )
 from typing import List, Optional
-import json
-
-
-class NewsArticleCRUD:
-    @staticmethod
-    def create(
-        db: Session, title: str, content: str, url: str = None, source: str = None
-    ):
-        """ニュース記事を作成"""
-        article = NewsArticle(title=title, content=content, url=url, source=source)
-        db.add(article)
-        db.commit()
-        db.refresh(article)
-        return article
-
-    @staticmethod
-    def get_by_id(db: Session, article_id: int) -> Optional[NewsArticle]:
-        """IDでニュース記事を取得"""
-        return db.query(NewsArticle).filter(NewsArticle.id == article_id).first()
-
-    @staticmethod
-    def get_all(db: Session, skip: int = 0, limit: int = 100) -> List[NewsArticle]:
-        """全ニュース記事を取得"""
-        return (
-            db.query(NewsArticle)
-            .order_by(desc(NewsArticle.created_at))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
-
-    @staticmethod
-    def get_count(db: Session) -> int:
-        """ニュース記事の総数を取得"""
-        return db.query(NewsArticle).count()
-
-
-class ExtractedWordCRUD:
-    @staticmethod
-    def create_or_increment(
-        db: Session, word: str, word_type: str, source_article_id: int = None
-    ):
-        """単語を作成、または存在する場合は頻度をインクリメント"""
-        existing_word = (
-            db.query(ExtractedWord).filter(ExtractedWord.word == word).first()
-        )
-
-        if existing_word:
-            existing_word.frequency += 1
-            db.commit()
-            db.refresh(existing_word)
-            return existing_word
-        else:
-            new_word = ExtractedWord(
-                word=word, word_type=word_type, source_article_id=source_article_id
-            )
-            db.add(new_word)
-            db.commit()
-            db.refresh(new_word)
-            return new_word
-
-    @staticmethod
-    def get_frequent_words(db: Session, limit: int = 50) -> List[ExtractedWord]:
-        """頻度の高い単語を取得"""
-        return (
-            db.query(ExtractedWord)
-            .order_by(desc(ExtractedWord.frequency))
-            .limit(limit)
-            .all()
-        )
-
-    @staticmethod
-    def get_by_type(
-        db: Session, word_type: str, limit: int = 100
-    ) -> List[ExtractedWord]:
-        """単語タイプで絞り込んで取得"""
-        return (
-            db.query(ExtractedWord)
-            .filter(ExtractedWord.word_type == word_type)
-            .order_by(desc(ExtractedWord.frequency))
-            .limit(limit)
-            .all()
-        )
-
-
-class OgiriTopicCRUD:
-    @staticmethod
-    def create(
-        db: Session,
-        topic_text: str,
-        is_generated: bool = False,
-        used_words: List[str] = None,
-    ):
-        """大喜利お題を作成"""
-        used_words_json = (
-            json.dumps(used_words, ensure_ascii=False) if used_words else None
-        )
-
-        topic = OgiriTopic(
-            topic_text=topic_text, is_generated=is_generated, used_words=used_words_json
-        )
-        db.add(topic)
-        db.commit()
-        db.refresh(topic)
-        return topic
-
-    @staticmethod
-    def get_random(db: Session) -> Optional[OgiriTopic]:
-        """ランダムでお題を取得"""
-        return db.query(OgiriTopic).order_by(func.random()).first()
-
-    @staticmethod
-    def get_all(db: Session, skip: int = 0, limit: int = 100) -> List[OgiriTopic]:
-        """全お題を取得"""
-        return (
-            db.query(OgiriTopic)
-            .order_by(desc(OgiriTopic.created_at))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
-
-    @staticmethod
-    def get_generated_topics(db: Session, limit: int = 50) -> List[OgiriTopic]:
-        """自動生成されたお題のみ取得"""
-        return (
-            db.query(OgiriTopic)
-            .filter(OgiriTopic.is_generated == True)
-            .order_by(desc(OgiriTopic.created_at))
-            .limit(limit)
-            .all()
-        )
-
-
-class TrainingTopicCRUD:
-    @staticmethod
-    def create(db: Session, topic_text: str):
-        """学習用お題を作成"""
-        topic = TrainingTopic(topic_text=topic_text)
-        db.add(topic)
-        db.commit()
-        db.refresh(topic)
-        return topic
-
-    @staticmethod
-    def get_all(db: Session) -> List[TrainingTopic]:
-        """全学習用お題を取得"""
-        return db.query(TrainingTopic).all()
-
-    @staticmethod
-    def bulk_create(db: Session, topic_texts: List[str]):
-        """学習用お題を一括作成"""
-        topics = [TrainingTopic(topic_text=text) for text in topic_texts]
-        db.add_all(topics)
-        db.commit()
-        return topics
 
 
 class DisplayWordCRUD:
@@ -192,12 +33,40 @@ class DisplayWordCRUD:
             return True
         return False
 
+    @staticmethod
+    def delete_all(db: Session) -> int:
+        """全表示用単語を削除"""
+        deleted_count = db.query(DisplayWord).count()
+        db.query(DisplayWord).delete()
+        db.commit()
+        return deleted_count
+
+    @staticmethod
+    def get_by_pos(db: Session, pos: str) -> List[DisplayWord]:
+        """指定された品詞の単語を取得"""
+        return db.query(DisplayWord).filter(DisplayWord.pos == pos).all()
+
+    @staticmethod
+    def get_random_by_pos(db: Session, pos: str, limit: int = 10) -> List[DisplayWord]:
+        """指定された品詞からランダムに単語を取得"""
+        return (
+            db.query(DisplayWord)
+            .filter(DisplayWord.pos == pos)
+            .order_by(func.random())
+            .limit(limit)
+            .all()
+        )
+
 
 class ConfirmedOdaiCRUD:
     @staticmethod
-    def create(db: Session, odai_text: str, source: str = "manual"):
+    def create(
+        db: Session, odai_text: str, source: str = "manual", quality_score: float = 0.0
+    ):
         """確定お題を作成"""
-        confirmed_odai = ConfirmedOdai(odai_text=odai_text, source=source)
+        confirmed_odai = ConfirmedOdai(
+            odai_text=odai_text, source=source, quality_score=quality_score
+        )
         db.add(confirmed_odai)
         db.commit()
         db.refresh(confirmed_odai)
@@ -237,10 +106,7 @@ class ConfirmedOdaiCRUD:
     @staticmethod
     def set_active(db: Session, odai_id: int) -> bool:
         """指定されたお題を出題中に設定（他のお題は非出題中にする）"""
-        # まず全てのお題を非出題中にする
         db.query(ConfirmedOdai).update({"is_active": False})
-
-        # 指定されたお題を出題中にする
         odai = db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
         if odai:
             odai.is_active = True
@@ -262,3 +128,55 @@ class ConfirmedOdaiCRUD:
             db.commit()
             return True
         return False
+
+
+class OdaiRatingCRUD:
+    @staticmethod
+    def create(
+        db: Session,
+        odai_text: str,
+        rating: int,
+        source: str = None,
+        feedback: str = None,
+    ):
+        """お題評価を作成"""
+        rating_obj = OdaiRating(
+            odai_text=odai_text, rating=rating, source=source, feedback=feedback
+        )
+        db.add(rating_obj)
+        db.commit()
+        db.refresh(rating_obj)
+        return rating_obj
+
+    @staticmethod
+    def get_high_rated_odais(
+        db: Session, min_rating: int = 4, limit: int = 100
+    ) -> List[OdaiRating]:
+        """高評価のお題を取得"""
+        return (
+            db.query(OdaiRating)
+            .filter(OdaiRating.rating >= min_rating)
+            .order_by(desc(OdaiRating.rating), desc(OdaiRating.created_at))
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def get_ratings_by_source(db: Session, source: str) -> List[OdaiRating]:
+        """ソース別の評価を取得"""
+        return (
+            db.query(OdaiRating)
+            .filter(OdaiRating.source == source)
+            .order_by(desc(OdaiRating.created_at))
+            .all()
+        )
+
+    @staticmethod
+    def get_average_rating_by_source(db: Session, source: str) -> float:
+        """ソース別の平均評価を取得"""
+        result = (
+            db.query(func.avg(OdaiRating.rating))
+            .filter(OdaiRating.source == source)
+            .scalar()
+        )
+        return result if result else 0.0
