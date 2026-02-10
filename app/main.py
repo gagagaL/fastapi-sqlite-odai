@@ -152,13 +152,35 @@ async def startup_event():
 
 
 @app.get("/")
-async def index(request: Request):
+async def index(request: Request, db: Session = Depends(get_db)):
     """トップページ"""
+    # 統計情報を取得
+    display_words = DisplayWordCRUD.get_all(db)
+    confirmed_odais = ConfirmedOdaiCRUD.get_all(db, skip=0, limit=1000)
+
+    stats = {
+        "news_count": 0,  # ニュース記事機能は未実装
+        "word_count": len(display_words),
+        "topic_count": len(confirmed_odais),
+        "training_count": 0,  # 学習データ数（後で実装）
+    }
+
+    # 最新のお題を取得
+    recent_topics = []
+    for odai in confirmed_odais[:5]:  # 最新5件
+        recent_topics.append({
+            "topic_text": odai.odai_text,
+            "is_generated": odai.source != "manual",
+            "created_at": odai.created_at,
+        })
+
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "title": settings.app_name,
+            "stats": stats,
+            "recent_topics": recent_topics,
         },
     )
 
