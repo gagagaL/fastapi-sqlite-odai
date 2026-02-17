@@ -37,39 +37,64 @@
         
         <div class="p-6">
             <h4 class="text-md font-medium text-gray-900 mb-3">お題表示設定の調整</h4>
-
-            <div class="flex flex-wrap items-end gap-4 mb-4">
-                <!-- 位置設定 -->
-                <div>
-                    <label for="top-position" class="text-sm font-medium text-gray-700">Top位置 (%)</label>
-                    <input type="number" id="top-position" min="0" max="100" value="50" class="block w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 mt-1">
-                </div>
-                <!-- フォントサイズ設定 -->
-                <div>
-                    <label for="font-size" class="text-sm font-medium text-gray-700">フォントサイズ (px)</label>
-                    <input type="number" id="font-size" min="12" max="200" value="48" class="block w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 mt-1">
-                </div>
-                <!-- 横幅設定 -->
-                <div>
-                    <label for="width-px" class="text-sm font-medium text-gray-700">横幅 (px)</label>
-                    <input type="number" id="width-px" min="200" max="2000" value="800" class="block w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 mt-1">
-                </div>
-                <!-- 単語表示Top位置 -->
-                <div>
-                    <label for="word-top-position" class="text-sm font-medium text-gray-700">単語Top位置 (%)</label>
-                    <input type="number" id="word-top-position" min="0" max="100" value="20" class="block w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 mt-1">
-                </div>
-                <!-- ボタン -->
-                <div class="flex gap-2">
-                    <button onclick="updateDisplaySettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                        適用
-                    </button>
-                    <button onclick="resetDisplaySettings()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
-                        リセット
-                    </button>
+            
+            <!-- 位置設定 -->
+            <div class="mb-4">
+                <label for="top-position" class="text-sm font-medium text-gray-700">Top位置 (%):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="top-position" min="0" max="100" value="50" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">0%: 画面上部, 50%: 中央, 100%: 画面下部</small>
                 </div>
             </div>
-            <div class="text-xs text-gray-500">Top位置: 0%=上部, 50%=中央, 100%=下部 / フォント: 12-200px / 横幅: 200-2000px</div>
+            
+            <!-- フォントサイズ設定 -->
+            <div class="mb-4">
+                <label for="font-size" class="text-sm font-medium text-gray-700">フォントサイズ (px):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="font-size" min="12" max="200" value="48" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">12-200pxの範囲で指定</small>
+                </div>
+            </div>
+            
+            <!-- 横幅設定 -->
+            <div class="mb-4">
+                <label for="width-px" class="text-sm font-medium text-gray-700">表示ゾーン横幅 (px):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="width-px" min="200" max="2000" value="800" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">200-2000pxの範囲で指定</small>
+                </div>
+            </div>
+            
+            <!-- ボタン -->
+            <div class="flex gap-2">
+                <button onclick="updateDisplaySettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                    適用
+                </button>
+                <button onclick="resetDisplaySettings()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+                    リセット
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200">
+            <h4 class="text-md font-medium text-gray-900 mb-3">🫧 単語表示設定の調整</h4>
+            
+            <!-- 単語表示Top位置設定 -->
+            <div class="mb-4">
+                <label for="word-top-position" class="text-sm font-medium text-gray-700">単語表示Top位置 (%):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="word-top-position" min="0" max="100" value="20" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">0%: 画面上部, 50%: 中央, 100%: 画面下部</small>
+                </div>
+            </div>
+            
+            <!-- ボタン -->
+            <div class="flex gap-2">
+                <button onclick="updateWordDisplaySettings()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors">
+                    単語表示設定を適用
+                </button>
+            </div>
+        </div>
         </div>
     </div>
 
@@ -1351,15 +1376,14 @@ function hideActivateModal() {
     currentOdaiId = null;
 }
 
-// 表示設定を更新（お題表示 + 単語表示を一括適用）
+// 表示設定を更新
 async function updateDisplaySettings() {
     const topPosition = parseInt(document.getElementById('top-position').value);
     const fontSize = parseInt(document.getElementById('font-size').value);
     const widthPx = parseInt(document.getElementById('width-px').value);
-    const wordTopPosition = parseInt(document.getElementById('word-top-position').value);
-
+    
     if (topPosition < 0 || topPosition > 100) {
-        addLog('❌ Top位置は0-100の範囲で入力してください', 'error');
+        addLog('❌ 位置は0-100の範囲で入力してください', 'error');
         return;
     }
     if (fontSize < 12 || fontSize > 200) {
@@ -1370,42 +1394,32 @@ async function updateDisplaySettings() {
         addLog('❌ 横幅は200-2000の範囲で入力してください', 'error');
         return;
     }
-    if (wordTopPosition < 0 || wordTopPosition > 100) {
-        addLog('❌ 単語Top位置は0-100の範囲で入力してください', 'error');
-        return;
-    }
-
-    addLog(`📍 表示設定を更新中... (位置:${topPosition}%, フォント:${fontSize}px, 横幅:${widthPx}px, 単語位置:${wordTopPosition}%)`);
-
+    
+    addLog(`📍 表示設定を更新中... (位置:${topPosition}%, フォント:${fontSize}px, 横幅:${widthPx}px)`);
+    
     try {
-        // お題表示設定
         const formData = new FormData();
         formData.append('top_position', topPosition);
         formData.append('font_size', fontSize);
         formData.append('width_px', widthPx);
-
+        
+        console.log('送信するデータ:', { topPosition, fontSize, widthPx });
+        
         const response = await fetch('/api/display/position', {
             method: 'POST',
             body: formData
         });
-
-        // 単語表示設定
-        const wordFormData = new FormData();
-        wordFormData.append('word_top_position', wordTopPosition);
-
-        const wordResponse = await fetch('/api/display/word-settings', {
-            method: 'POST',
-            body: wordFormData
-        });
-
-        if (response.ok && wordResponse.ok) {
+        
+        const result = await response.json();
+        console.log('APIレスポンス:', result);
+        
+        if (response.ok) {
             addLog(`✅ 表示設定を更新しました`, 'success');
-            if (window.opener && !window.opener.closed) {
+            // display画面に通知
+            if (window.opener) {
                 window.opener.postMessage({type: 'position_updated'}, '*');
-                window.opener.postMessage({type: 'word_position_updated'}, '*');
             }
         } else {
-            const result = await response.json();
             addLog(`❌ 表示設定エラー: ${result.detail}`, 'error');
         }
     } catch (error) {
@@ -1419,10 +1433,48 @@ async function resetDisplaySettings() {
     document.getElementById('top-position').value = 50;
     document.getElementById('font-size').value = 48;
     document.getElementById('width-px').value = 800;
-    document.getElementById('word-top-position').value = 20;
     await updateDisplaySettings();
 }
 
+// 単語表示設定を更新
+async function updateWordDisplaySettings() {
+    const topPosition = parseInt(document.getElementById('word-top-position').value);
+    
+    if (topPosition < 0 || topPosition > 100) {
+        addLog('❌ 位置は0-100の範囲で入力してください', 'error');
+        return;
+    }
+    
+    addLog(`🫧 単語表示設定を更新中... (位置:${topPosition}%)`);
+    
+    try {
+        const formData = new FormData();
+        formData.append('word_top_position', topPosition);
+        
+        const response = await fetch('/api/display/word-settings', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 単語表示設定を更新しました: 位置${topPosition}%`, 'success');
+            
+            // 新規タブで表示画面を開いている場合は更新通知
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({type: 'word_position_updated'}, '*');
+            }
+        } else {
+            addLog(`❌ 単語表示設定エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('単語表示設定エラー:', error);
+        addLog(`❌ 単語表示設定エラー: ${error.message}`, 'error');
+    }
+}
+
+>>>>>>> origin/master
 // 表示設定を読み込み
 async function loadPositionSettings() {
     try {
