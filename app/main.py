@@ -26,6 +26,7 @@ from .analysis.fourth_force_context_learner import FourthForceContextLearner
 from .analysis.fourth_force_generator import FourthForceGenerator
 from .analysis.fifth_force_ngram_learner import FifthForceNgramLearner
 from .analysis.fifth_force_ngram_generator import FifthForceNgramGenerator
+from .analysis import ai_force_generator
 
 
 # データディレクトリの作成
@@ -1356,3 +1357,216 @@ async def delete_fifth_force_model(model_name: str = Form(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"モデル削除エラー: {str(e)}")
+
+
+# ============================================
+# 第六勢力（AI + 参考お題）APIエンドポイント
+# ============================================
+
+
+def _get_ai_config():
+    """AI API設定を取得"""
+    s = get_settings()
+    provider = s.ai_provider or "gemini"
+    api_key = s.gemini_api_key if provider == "gemini" else s.openai_api_key
+    return api_key, provider
+
+
+@app.post("/api/sixth-force/learn")
+async def learn_sixth_force(file: UploadFile = File(...)):
+    """第六勢力の参考お題を学習"""
+    try:
+        if not file.filename.endswith((".txt", ".json")):
+            raise HTTPException(
+                status_code=400,
+                detail="テキストファイルまたはJSONファイルをアップロードしてください",
+            )
+
+        content = await file.read()
+        text_content = content.decode("utf-8")
+
+        if file.filename.endswith(".txt"):
+            new_count, total = ai_force_generator.learn_from_text(text_content)
+            return {
+                "message": f"第六勢力: {new_count}個の参考お題を学習しました（合計: {total}個）",
+                "new_count": new_count,
+                "total": total,
+                "stats": ai_force_generator.get_reference_stats(),
+            }
+        elif file.filename.endswith(".json"):
+            try:
+                data = json.loads(text_content)
+                if not isinstance(data, list):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="JSONファイルは配列形式にしてください",
+                    )
+                new_count, total = ai_force_generator.learn_from_json(data)
+                return {
+                    "message": f"第六勢力: {new_count}個の参考お題を学習しました（合計: {total}個）",
+                    "new_count": new_count,
+                    "total": total,
+                    "stats": ai_force_generator.get_reference_stats(),
+                }
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=400, detail="JSONファイルの解析に失敗しました"
+                )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第六勢力学習エラー: {str(e)}")
+
+
+@app.post("/api/sixth-force/generate")
+async def generate_sixth_force_odai(
+    count: int = Form(10),
+    use_words: bool = Form(True),
+    db: Session = Depends(get_db),
+):
+    """第六勢力でお題を生成（AI + 参考お題）"""
+    try:
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "第六勢力: 使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+            }
+
+        api_key, provider = _get_ai_config()
+
+        generated_odais = await ai_force_generator.generate_sixth_force(
+            words_to_use, count=count, api_key=api_key, provider=provider
+        )
+
+        if not generated_odais:
+            return {
+                "error": "第六勢力: お題の生成に失敗しました。",
+                "generated_odais": [],
+            }
+
+        return {
+            "message": f"第六勢力: {len(generated_odais)}個のお題を生成しました",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": odai.get("source", "sixth_force_ai"),
+                    "method": odai.get("method", "ai_with_reference"),
+                    "quality_score": odai.get("quality_score", 0.5),
+                }
+                for odai in generated_odais
+            ],
+            "stats": ai_force_generator.get_reference_stats(),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第六勢力生成エラー: {str(e)}")
+
+
+@app.get("/api/sixth-force/stats")
+async def get_sixth_force_stats():
+    """第六勢力の統計を取得"""
+    try:
+        return {
+            "stats": ai_force_generator.get_reference_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"第六勢力統計取得エラー: {str(e)}"
+        )
+
+
+@app.post("/api/sixth-force/reset")
+async def reset_sixth_force():
+    """第六勢力の参考お題をリセット"""
+    try:
+        ai_force_generator.reset_reference_odais()
+        return {
+            "message": "第六勢力の参考お題をリセットしました",
+            "stats": ai_force_generator.get_reference_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"第六勢力リセットエラー: {str(e)}"
+        )
+
+
+# ============================================
+# 第七勢力（AI自由生成）APIエンドポイント
+# ============================================
+
+
+@app.post("/api/seventh-force/generate")
+async def generate_seventh_force_odai(
+    count: int = Form(10),
+    use_words: bool = Form(True),
+    db: Session = Depends(get_db),
+):
+    """第七勢力でお題を生成（AI自由生成）"""
+    try:
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "第七勢力: 使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+            }
+
+        api_key, provider = _get_ai_config()
+
+        generated_odais = await ai_force_generator.generate_seventh_force(
+            words_to_use, count=count, api_key=api_key, provider=provider
+        )
+
+        if not generated_odais:
+            return {
+                "error": "第七勢力: お題の生成に失敗しました。",
+                "generated_odais": [],
+            }
+
+        return {
+            "message": f"第七勢力: {len(generated_odais)}個のお題を生成しました",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": odai.get("source", "seventh_force_ai"),
+                    "method": odai.get("method", "ai_free_generation"),
+                    "quality_score": odai.get("quality_score", 0.5),
+                }
+                for odai in generated_odais
+            ],
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第七勢力生成エラー: {str(e)}")
+
+
+# ============================================
+# AI設定 APIエンドポイント
+# ============================================
+
+
+@app.get("/api/ai/config")
+async def get_ai_config():
+    """AI設定を取得（APIキーは非表示）"""
+    try:
+        api_key, provider = _get_ai_config()
+        return {
+            "provider": provider,
+            "has_api_key": bool(api_key),
+            "api_key_preview": (
+                f"{api_key[:8]}..."
+                if api_key and len(api_key) > 8
+                else ""
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI設定取得エラー: {str(e)}")

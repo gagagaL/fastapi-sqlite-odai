@@ -95,6 +95,7 @@
                 </button>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- 表示単語管理機能 -->
@@ -238,6 +239,9 @@
                             <button type="button" onclick="trainFifthForceModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
                                 🌟 第五の力（n-gram）で学習
                             </button>
+                            <button type="button" onclick="trainSixthForceModel()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
+                                🧠 第六勢力で学習（AI参考用お題）
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -273,6 +277,12 @@
                         <button onclick="generateOdaiFifthForce()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
                             🌟 第五の力（n-gram）でお題を生成
                         </button>
+                        <button onclick="generateOdaiSixthForce()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🧠 第六勢力でお題を生成（AI + 参考お題）
+                        </button>
+                        <button onclick="generateOdaiSeventhForce()" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🌐 第七勢力でお題を生成（AI自由生成）
+                        </button>
                         <div class="mt-4 space-y-2">
                             <button onclick="saveLLMModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                                 💾 LLMモデルを保存
@@ -300,6 +310,15 @@
                             </button>
                             <button onclick="resetFifthForceModel()" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                                 🔄 第五の力をリセット
+                            </button>
+                            <button onclick="getSixthForceStats()" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🧠 第六勢力統計を確認
+                            </button>
+                            <button onclick="resetSixthForceModel()" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🔄 第六勢力をリセット
+                            </button>
+                            <button onclick="checkAiConfig()" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🔑 AI API設定を確認
                             </button>
                             <button onclick="learnFromHighRatings()" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                                 ⭐ 高評価から学習
@@ -1455,6 +1474,7 @@ async function updateWordDisplaySettings() {
     }
 }
 
+>>>>>>> origin/master
 // 表示設定を読み込み
 async function loadPositionSettings() {
     try {
@@ -2811,6 +2831,225 @@ async function deleteFifthForceModel() {
         }
     } catch (error) {
         addLog(`❌ モデル削除エラー: ${error.message}`, 'error');
+    }
+}
+
+// ========== 第六勢力（AI + 参考お題）の関数群 ==========
+
+// 第六勢力の学習
+async function trainSixthForceModel() {
+    const fileInput = document.getElementById('odaiFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        addLog('❌ ファイルを選択してください', 'error');
+        return;
+    }
+
+    addLog('🧠 第六勢力の参考お題を学習中...');
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/sixth-force/learn', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第六勢力学習完了: ${result.message}`, 'success');
+            addLog(`📊 参考お題数: ${result.stats.reference_odais_count}個`);
+        } else {
+            addLog(`❌ 第六勢力学習エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第六勢力学習エラー:', error);
+        addLog(`❌ 第六勢力学習エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第六勢力でお題を生成
+async function generateOdaiSixthForce() {
+    const count = parseInt(document.getElementById('odaiCount').value) || 10;
+    const useWords = document.getElementById('useWords').checked;
+
+    addLog(`🧠 第六勢力でお題を生成中... (数: ${count}, 単語使用: ${useWords ? 'ON' : 'OFF'})`);
+    addLog('🔄 AI APIに問い合わせ中...（少し時間がかかる場合があります）');
+
+    try {
+        const formData = new FormData();
+        formData.append('count', count);
+        formData.append('use_words', useWords);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+        const response = await fetch('/api/sixth-force/generate', {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        const result = await response.json();
+
+        if (response.ok) {
+            const message = result.message || '第六勢力でお題を生成しました';
+            addLog(`✅ 第六勢力生成完了: ${message}`, 'success');
+
+            if (result.generated_odais && result.generated_odais.length > 0) {
+                addLog(`📝 生成完了: ${result.generated_odais.length}個のお題を生成しました`, 'success');
+                displayGeneratedOdais(result.generated_odais, '第六勢力（AI + 参考お題）');
+            } else {
+                addLog('❌ 生成されたお題がありません', 'error');
+            }
+
+            if (result.error) {
+                addLog(`⚠️ ${result.error}`, 'error');
+            }
+        } else {
+            addLog(`❌ 第六勢力生成エラー: ${result.error || result.detail}`, 'error');
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            addLog(`❌ 第六勢力生成タイムアウト: 120秒以内に完了しませんでした`, 'error');
+        } else {
+            console.error('第六勢力生成エラー:', error);
+            addLog(`❌ 第六勢力生成エラー: ${error.message}`, 'error');
+        }
+    }
+}
+
+// 第六勢力統計を取得
+async function getSixthForceStats() {
+    addLog('🧠 第六勢力の統計を取得中...');
+
+    try {
+        const response = await fetch('/api/sixth-force/stats');
+        const result = await response.json();
+
+        if (response.ok) {
+            const stats = result.stats;
+            addLog(`📊 第六勢力統計:`, 'info');
+            addLog(`  - 参考お題数: ${stats.reference_odais_count}個`, 'info');
+            if (stats.updated_at) {
+                addLog(`  - 最終更新: ${stats.updated_at}`, 'info');
+            }
+        } else {
+            addLog(`❌ 第六勢力統計取得エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第六勢力統計取得エラー:', error);
+        addLog(`❌ 第六勢力統計取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第六勢力をリセット
+async function resetSixthForceModel() {
+    if (!confirm('第六勢力の参考お題データをリセットしますか？この操作は元に戻せません。')) {
+        return;
+    }
+
+    addLog('🧠 第六勢力をリセット中...');
+
+    try {
+        const response = await fetch('/api/sixth-force/reset', {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第六勢力リセット完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ 第六勢力リセットエラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第六勢力リセットエラー:', error);
+        addLog(`❌ 第六勢力リセットエラー: ${error.message}`, 'error');
+    }
+}
+
+// ========== 第七勢力（AI自由生成）の関数群 ==========
+
+// 第七勢力でお題を生成
+async function generateOdaiSeventhForce() {
+    const count = parseInt(document.getElementById('odaiCount').value) || 10;
+    const useWords = document.getElementById('useWords').checked;
+
+    addLog(`🌐 第七勢力でお題を生成中... (数: ${count}, 単語使用: ${useWords ? 'ON' : 'OFF'})`);
+    addLog('🔄 AI APIに問い合わせ中...（少し時間がかかる場合があります）');
+
+    try {
+        const formData = new FormData();
+        formData.append('count', count);
+        formData.append('use_words', useWords);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+        const response = await fetch('/api/seventh-force/generate', {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        const result = await response.json();
+
+        if (response.ok) {
+            const message = result.message || '第七勢力でお題を生成しました';
+            addLog(`✅ 第七勢力生成完了: ${message}`, 'success');
+
+            if (result.generated_odais && result.generated_odais.length > 0) {
+                addLog(`📝 生成完了: ${result.generated_odais.length}個のお題を生成しました`, 'success');
+                displayGeneratedOdais(result.generated_odais, '第七勢力（AI自由生成）');
+            } else {
+                addLog('❌ 生成されたお題がありません', 'error');
+            }
+
+            if (result.error) {
+                addLog(`⚠️ ${result.error}`, 'error');
+            }
+        } else {
+            addLog(`❌ 第七勢力生成エラー: ${result.error || result.detail}`, 'error');
+        }
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            addLog(`❌ 第七勢力生成タイムアウト: 120秒以内に完了しませんでした`, 'error');
+        } else {
+            console.error('第七勢力生成エラー:', error);
+            addLog(`❌ 第七勢力生成エラー: ${error.message}`, 'error');
+        }
+    }
+}
+
+// AI API設定を確認
+async function checkAiConfig() {
+    addLog('🔑 AI API設定を確認中...');
+
+    try {
+        const response = await fetch('/api/ai/config');
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`📊 AI API設定:`, 'info');
+            addLog(`  - プロバイダー: ${result.provider}`, 'info');
+            addLog(`  - APIキー設定: ${result.has_api_key ? '✅ 設定済み' : '❌ 未設定'}`, result.has_api_key ? 'info' : 'error');
+            if (result.api_key_preview) {
+                addLog(`  - APIキー: ${result.api_key_preview}`, 'info');
+            }
+            if (!result.has_api_key) {
+                addLog(`⚠️ .envファイルに ${result.provider === 'gemini' ? 'GEMINI_API_KEY' : 'OPENAI_API_KEY'} を設定してください`, 'error');
+            }
+        } else {
+            addLog(`❌ AI設定取得エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ AI設定取得エラー: ${error.message}`, 'error');
     }
 }
 </script>
