@@ -1,310 +1,182 @@
-from sqlalchemy import func, desc, inspect
 from sqlalchemy.orm import Session
-from app.models.news_article import NewsArticle
-from app.models.extracted_word import ExtractedWord
-from typing import List, Optional, Dict, Tuple
-from datetime import datetime
-from app.models.topic import OgiriTopic, TrainingTopic
+from sqlalchemy import desc, func
+from .models import (
+    DisplayWord,
+    ConfirmedOdai,
+    OdaiRating,
+)
+from typing import List, Optional
 
-class NewsArticleCRUD:
+
+class DisplayWordCRUD:
+    @staticmethod
+    def create(db: Session, word: str, pos: str = None):
+        """表示用単語を作成"""
+        display_word = DisplayWord(word=word, pos=pos)
+        db.add(display_word)
+        db.commit()
+        db.refresh(display_word)
+        return display_word
+
+    @staticmethod
+    def get_all(db: Session) -> List[DisplayWord]:
+        """全表示用単語を取得"""
+        return db.query(DisplayWord).order_by(desc(DisplayWord.created_at)).all()
+
+    @staticmethod
+    def delete(db: Session, word_id: int) -> bool:
+        """表示用単語を削除"""
+        word = db.query(DisplayWord).filter(DisplayWord.id == word_id).first()
+        if word:
+            db.delete(word)
+            db.commit()
+            return True
+        return False
+
+    @staticmethod
+    def delete_all(db: Session) -> int:
+        """全表示用単語を削除"""
+        deleted_count = db.query(DisplayWord).count()
+        db.query(DisplayWord).delete()
+        db.commit()
+        return deleted_count
+
+    @staticmethod
+    def get_by_pos(db: Session, pos: str) -> List[DisplayWord]:
+        """指定された品詞の単語を取得"""
+        return db.query(DisplayWord).filter(DisplayWord.pos == pos).all()
+
+    @staticmethod
+    def get_random_by_pos(db: Session, pos: str, limit: int = 10) -> List[DisplayWord]:
+        """指定された品詞からランダムに単語を取得"""
+        return (
+            db.query(DisplayWord)
+            .filter(DisplayWord.pos == pos)
+            .order_by(func.random())
+            .limit(limit)
+            .all()
+        )
+
+
+class ConfirmedOdaiCRUD:
+    @staticmethod
+    def create(
+        db: Session, odai_text: str, source: str = "manual", quality_score: float = 0.0
+    ):
+        """確定お題を作成"""
+        confirmed_odai = ConfirmedOdai(
+            odai_text=odai_text, source=source, quality_score=quality_score
+        )
+        db.add(confirmed_odai)
+        db.commit()
+        db.refresh(confirmed_odai)
+        return confirmed_odai
+
+    @staticmethod
+    def get_all(db: Session, skip: int = 0, limit: int = 100) -> List[ConfirmedOdai]:
+        """全確定お題を取得"""
+        return (
+            db.query(ConfirmedOdai)
+            .order_by(desc(ConfirmedOdai.created_at))
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def get_by_id(db: Session, odai_id: int) -> Optional[ConfirmedOdai]:
+        """IDで確定お題を取得"""
+        return db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
+
+    @staticmethod
+    def delete(db: Session, odai_id: int) -> bool:
+        """確定お題を削除"""
+        odai = db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
+        if odai:
+            db.delete(odai)
+            db.commit()
+            return True
+        return False
+
     @staticmethod
     def get_count(db: Session) -> int:
-        return db.query(NewsArticle).count()
+        """確定お題の総数を取得"""
+        return db.query(ConfirmedOdai).count()
 
     @staticmethod
-    def get_all(db: Session, limit: int = None) -> List[NewsArticle]:
-        query = db.query(NewsArticle).order_by(desc(NewsArticle.created_at))
-        if limit:
-            query = query.limit(limit)
-        return query.all()
-
-    @staticmethod
-    def get_by_id(db: Session, article_id: int) -> Optional[NewsArticle]:
-        return db.query(NewsArticle).filter(NewsArticle.id == article_id).first()
-
-    @staticmethod
-    def create(db: Session, title: str, content: str, url: str, source: str) -> NewsArticle:
-        db_article = NewsArticle(
-            title=title,
-            content=content,
-            url=url,
-            source=source
-        )
-        db.add(db_article)
-        db.commit()
-        db.refresh(db_article)
-        return db_article
-    
-    @staticmethod
-    def create_if_not_exists(db: Session, article_data: Dict) -> Optional[NewsArticle]:
-        """記事が存在しない場合のみ作成（URLで重複チェック）"""
-        # URLで重複チェック
-        existing = db.query(NewsArticle).filter(
-            NewsArticle.url == article_data['url']
-        ).first()
-        
-        if existing:
-            return None  # 既に存在する場合はNoneを返す
-        
-        # 新しい記事を作成
-        db_article = NewsArticle(
-            title=article_data['title'],
-            content=article_data['content'],
-            url=article_data['url'],
-            source=article_data['source']
-        )
-        db.add(db_article)
-        db.commit()
-        db.refresh(db_article)
-        return db_article
-    
-    @staticmethod
-    def get_by_url(db: Session, url: str) -> Optional[NewsArticle]:
-        """URLで記事を検索"""
-        return db.query(NewsArticle).filter(NewsArticle.url == url).first()
-    
-    @staticmethod
-    def get_recent(db: Session, limit: int) -> List[NewsArticle]:
-        """最近の記事を取得"""
-        return db.query(NewsArticle).order_by(desc(NewsArticle.created_at)).limit(limit).all()
-
-    @staticmethod
-    def get_stats(db: Session) -> Dict:
-        """記事の統計情報を取得"""
-        total = db.query(NewsArticle).count()
-        sources = db.query(
-            NewsArticle.source,
-            func.count(NewsArticle.id)
-        ).group_by(NewsArticle.source).all()
-        
-        return {
-            "total": total,
-            "sources": dict(sources)
-        }
-
-class ExtractedWordCRUD:
-    @staticmethod
-    def create_or_update(db: Session, word_data: Dict, article_id: int) -> ExtractedWord:
-        """単語を作成または更新（記事IDごと）"""
-        word = word_data['word']
-        existing = db.query(ExtractedWord).filter(
-            ExtractedWord.word == word,
-            ExtractedWord.source_article_id == article_id
-        ).first()
-        
-        if existing:
-            existing.frequency += 1
+    def set_active(db: Session, odai_id: int) -> bool:
+        """指定されたお題を出題中に設定（他のお題は非出題中にする）"""
+        db.query(ConfirmedOdai).update({"is_active": False})
+        odai = db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
+        if odai:
+            odai.is_active = True
             db.commit()
-            return existing
-            
-        new_word = ExtractedWord(
-            word=word,
-            word_type=word_data.get('category', '一般'),
-            context=word_data.get('context', ''),
-            source_article_id=article_id,
-            frequency=1
-        )
-        
-        db.add(new_word)
-        db.commit()
-        return new_word
-    
+            return True
+        return False
+
     @staticmethod
-    def create_or_update_global(db: Session, word_data: Dict, article_id: int) -> ExtractedWord:
-        """単語を作成または更新（全記事で重複チェック）"""
-        word = word_data['word']
-        # 同じ単語が既に存在するかチェック（記事IDに関係なく）
-        existing = db.query(ExtractedWord).filter(
-            ExtractedWord.word == word
-        ).first()
-        
-        if existing:
-            # 既存の単語の頻度を増加
-            existing.frequency += 1
-            # 最初の記事IDを保持（記事IDが小さい方を優先）
-            if article_id < existing.source_article_id:
-                existing.source_article_id = article_id
+    def get_active(db: Session) -> Optional[ConfirmedOdai]:
+        """現在出題中のお題を取得"""
+        return db.query(ConfirmedOdai).filter(ConfirmedOdai.is_active == True).first()
+
+    @staticmethod
+    def set_inactive(db: Session, odai_id: int) -> bool:
+        """指定されたお題を非出題中にする"""
+        odai = db.query(ConfirmedOdai).filter(ConfirmedOdai.id == odai_id).first()
+        if odai:
+            odai.is_active = False
             db.commit()
-            return existing
-            
-        # 新しい単語を作成
-        new_word = ExtractedWord(
-            word=word,
-            word_type=word_data.get('category', '一般'),
-            context=word_data.get('context', ''),
-            source_article_id=article_id,
-            frequency=1
+            return True
+        return False
+
+
+class OdaiRatingCRUD:
+    @staticmethod
+    def create(
+        db: Session,
+        odai_text: str,
+        rating: int,
+        source: str = None,
+        feedback: str = None,
+    ):
+        """お題評価を作成"""
+        rating_obj = OdaiRating(
+            odai_text=odai_text, rating=rating, source=source, feedback=feedback
         )
-        
-        db.add(new_word)
+        db.add(rating_obj)
         db.commit()
-        return new_word
+        db.refresh(rating_obj)
+        return rating_obj
 
     @staticmethod
-    def get_all(db: Session, limit: int = None) -> List[ExtractedWord]:
-        query = db.query(ExtractedWord).order_by(
-            desc(ExtractedWord.importance_score),
-            desc(ExtractedWord.frequency)
-        )
-        if limit:
-            query = query.limit(limit)
-        return query.all()
-
-    @staticmethod
-    def create(db: Session, word_data: Dict) -> ExtractedWord:
-        db_word = ExtractedWord(**word_data)
-        db.add(db_word)
-        db.commit()
-        db.refresh(db_word)
-        return db_word
-
-    @staticmethod
-    def get_or_create(db: Session, word: str, article_id: int) -> ExtractedWord:
-        db_word = db.query(ExtractedWord).filter(
-            ExtractedWord.word == word,
-            ExtractedWord.source_article_id == article_id
-        ).first()
-        
-        if not db_word:
-            db_word = ExtractedWord(
-                word=word,
-                source_article_id=article_id,
-                frequency=1
-            )
-            db.add(db_word)
-            db.commit()
-            db.refresh(db_word)
-        
-        return db_word
-
-    @staticmethod
-    def get_stats(db: Session) -> Dict:
-        """単語の統計情報を取得"""
-        return {
-            "total": db.query(ExtractedWord).count(),
-            "unique": db.query(func.count(func.distinct(ExtractedWord.word))).scalar()
-        }
-
-class OgiriTopicCRUD:
-    @staticmethod
-    def create(db: Session, title: str, content: str) -> OgiriTopic:
-        db_topic = OgiriTopic(
-            title=title,
-            content=content,
-            is_active=True
-        )
-        db.add(db_topic)
-        db.commit()
-        db.refresh(db_topic)
-        return db_topic
-
-    @staticmethod
-    def get_random(db: Session) -> Optional[OgiriTopic]:
-        return db.query(OgiriTopic)\
-            .filter(OgiriTopic.is_active == True)\
-            .order_by(func.random())\
-            .first()
-
-    @staticmethod
-    def get_all(db: Session, active_only: bool = False) -> List[OgiriTopic]:
-        query = db.query(OgiriTopic)
-        if active_only:
-            query = query.filter(OgiriTopic.is_active == True)
-        return query.order_by(desc(OgiriTopic.created_at)).all()
-
-class TrainingTopicCRUD:
-    @staticmethod
-    def create(db: Session, title: str, content: str, category: str) -> TrainingTopic:
-        db_topic = TrainingTopic(
-            title=title,
-            content=content,
-            category=category
-        )
-        db.add(db_topic)
-        db.commit()
-        db.refresh(db_topic)
-        return db_topic
-
-    @staticmethod
-    def get_random(db: Session, category: Optional[str] = None) -> Optional[TrainingTopic]:
-        query = db.query(TrainingTopic)
-        if category:
-            query = query.filter(TrainingTopic.category == category)
-        return query.order_by(func.random()).first()
-
-    @staticmethod
-    def get_all(db: Session) -> List[TrainingTopic]:
-        return db.query(TrainingTopic)\
-            .order_by(desc(TrainingTopic.created_at))\
+    def get_high_rated_odais(
+        db: Session, min_rating: int = 4, limit: int = 100
+    ) -> List[OdaiRating]:
+        """高評価のお題を取得"""
+        return (
+            db.query(OdaiRating)
+            .filter(OdaiRating.rating >= min_rating)
+            .order_by(desc(OdaiRating.rating), desc(OdaiRating.created_at))
+            .limit(limit)
             .all()
-
-class DatabaseStatusCRUD:
-    @staticmethod
-    def check_database_status(db: Session) -> Tuple[str, Dict]:
-        """データベースの状態を確認する"""
-        try:
-            tables_status = {}
-            overall_status = "healthy"
-
-            # 必要なテーブルと対応するモデルのマッピング
-            required_tables = {
-                'news_articles': NewsArticle,
-                'extracted_words': ExtractedWord,
-                'ogiri_topics': OgiriTopic,
-                'training_topics': TrainingTopic
-            }
-
-            # テーブルの存在確認とレコード数取得
-            inspector = inspect(db.bind)
-            existing_tables = inspector.get_table_names()
-
-            for table_name, model in required_tables.items():
-                if table_name not in existing_tables:
-                    tables_status[table_name] = {
-                        "exists": False,
-                        "count": 0,
-                        "status": "❌ テーブル不存在"
-                    }
-                    overall_status = "needs_repair"
-                else:
-                    try:
-                        count = db.query(model).count()
-                        tables_status[table_name] = {
-                            "exists": True,
-                            "count": count,
-                            "status": "✅ 正常"
-                        }
-                    except Exception as e:
-                        tables_status[table_name] = {
-                            "exists": True,
-                            "count": 0,
-                            "status": f"❌ エラー: {str(e)}"
-                        }
-                        overall_status = "error"
-
-            return overall_status, tables_status
-
-        except Exception as e:
-            return "error", {"error": str(e)}
+        )
 
     @staticmethod
-    def repair_database(db: Session) -> Tuple[str, Dict]:
-        """データベースを修復（テーブルを作成）する"""
-        try:
-            from app.database.database import Base, engine
-            
-            # 全テーブルを作成
-            Base.metadata.create_all(bind=engine)
-            
-            # 作成後の状態を確認
-            status, details = DatabaseStatusCRUD.check_database_status(db)
-            
-            return "success", {
-                "message": "データベースを修復しました",
-                "status": status,
-                "details": details
-            }
-        except Exception as e:
-            return "error", {
-                "message": f"データベース修復エラー: {str(e)}"
-            }
+    def get_ratings_by_source(db: Session, source: str) -> List[OdaiRating]:
+        """ソース別の評価を取得"""
+        return (
+            db.query(OdaiRating)
+            .filter(OdaiRating.source == source)
+            .order_by(desc(OdaiRating.created_at))
+            .all()
+        )
+
+    @staticmethod
+    def get_average_rating_by_source(db: Session, source: str) -> float:
+        """ソース別の平均評価を取得"""
+        result = (
+            db.query(func.avg(OdaiRating.rating))
+            .filter(OdaiRating.source == source)
+            .scalar()
+        )
+        return result if result else 0.0

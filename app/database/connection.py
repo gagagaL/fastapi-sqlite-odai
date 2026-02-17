@@ -1,6 +1,6 @@
 # app/database/connection.py - 修正版（ディレクトリ作成対応）
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import logging
@@ -31,12 +31,17 @@ def get_db():
     finally:
         db.close()
 
+
 def init_db():
-    """データベースの初期化"""
-    from app.models import news_article, extracted_word, topic
     try:
-        # テーブルを作成
         Base.metadata.create_all(bind=engine)
+        # display_words.pos が無ければ追加
+        with engine.begin() as conn:
+            exists = conn.execute(
+                text("SELECT 1 FROM pragma_table_info('display_words') WHERE name='pos'")
+            ).first()
+            if not exists:
+                conn.execute(text("ALTER TABLE display_words ADD COLUMN pos VARCHAR(50)"))
         logger.info("データベーステーブルを作成しました")
     except Exception as e:
         logger.error(f"データベース初期化エラー: {e}")

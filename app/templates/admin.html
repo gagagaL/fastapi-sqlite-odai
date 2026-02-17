@@ -11,31 +11,16 @@
         
         <!-- スクレイピング機能 -->
         <div class="p-6">
-            <h2 class="text-xl font-semibold text-gray-900 mb-6">🕷️ ニュース収集機能</h2>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <!-- 収集設定 -->
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">収集設定</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">記事数/サイト</label>
-                            <input type="number" id="articlesPerSite" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" value="2" min="1" max="5">
-                            <p class="text-sm text-gray-500 mt-1">各サイトから取得する記事数</p>
-                        </div>
-                        <button onclick="runFullPipelineAll()" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
-                            🌐 全サイト収集＋単語抽出（全カテゴリ）
-                        </button>
-                    </div>
-                </div>
+            <h2 class="text-xl font-semibold text-gray-900 mb-6">システム状態</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-1 gap-8">
                 
                 <!-- システム状態 -->
                 <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">システム状態</h3>
                     <div class="space-y-4">
                         <button onclick="checkDatabaseStatus()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors border border-gray-300">
                             🗄️ DB状態確認
                         </button>
-                        <div id="logArea" class="border border-gray-300 rounded-lg p-4 h-80 overflow-y-auto bg-gray-50">
+                        <div id="logArea" class="border border-gray-300 rounded-lg p-4 h-40 overflow-y-auto bg-gray-50">
                             <p class="text-sm text-gray-500">ここに実行ログが表示されます...</p>
                         </div>
                     </div>
@@ -44,31 +29,144 @@
         </div>
     </div>
 
-    <!-- 単語管理 -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <!-- 表示設定調整 -->
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden mt-8">
         <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <h2 class="text-xl font-semibold text-gray-900">🔤 抽出単語管理</h2>
-                <div class="flex flex-col sm:flex-row gap-2">
-                    <input type="text" id="wordSearch" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="単語検索..." style="width: 200px;">
-                    <button onclick="searchWords()" class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">検索</button>
-                    <button onclick="loadWords()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-300">🔄</button>
+            <h2 class="text-xl font-semibold text-gray-900">⚙️ 表示設定調整</h2>
+        </div>
+        
+        <div class="p-6">
+            <h4 class="text-md font-medium text-gray-900 mb-3">お題表示設定の調整</h4>
+            
+            <!-- 位置設定 -->
+            <div class="mb-4">
+                <label for="top-position" class="text-sm font-medium text-gray-700">Top位置 (%):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="top-position" min="0" max="100" value="50" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">0%: 画面上部, 50%: 中央, 100%: 画面下部</small>
                 </div>
+            </div>
+            
+            <!-- フォントサイズ設定 -->
+            <div class="mb-4">
+                <label for="font-size" class="text-sm font-medium text-gray-700">フォントサイズ (px):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="font-size" min="12" max="200" value="48" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">12-200pxの範囲で指定</small>
+                </div>
+            </div>
+            
+            <!-- 横幅設定 -->
+            <div class="mb-4">
+                <label for="width-px" class="text-sm font-medium text-gray-700">表示ゾーン横幅 (px):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="width-px" min="200" max="2000" value="800" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">200-2000pxの範囲で指定</small>
+                </div>
+            </div>
+            
+            <!-- ボタン -->
+            <div class="flex gap-2">
+                <button onclick="updateDisplaySettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
+                    適用
+                </button>
+                <button onclick="resetDisplaySettings()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+                    リセット
+                </button>
             </div>
         </div>
-        <div class="p-6">
-            <div id="wordsArea">
-                <div class="text-center py-8">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-                    <p class="text-gray-600 mt-2">単語リストを読み込み中...</p>
+        
+        <div class="p-6 border-t border-gray-200">
+            <h4 class="text-md font-medium text-gray-900 mb-3">🫧 単語表示設定の調整</h4>
+            
+            <!-- 単語表示Top位置設定 -->
+            <div class="mb-4">
+                <label for="word-top-position" class="text-sm font-medium text-gray-700">単語表示Top位置 (%):</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" id="word-top-position" min="0" max="100" value="20" class="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <small class="text-gray-500">0%: 画面上部, 50%: 中央, 100%: 画面下部</small>
                 </div>
             </div>
-            <div id="wordsPagination" class="mt-6"></div>
+            
+            <!-- ボタン -->
+            <div class="flex gap-2">
+                <button onclick="updateWordDisplaySettings()" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors">
+                    単語表示設定を適用
+                </button>
+            </div>
         </div>
     </div>
 
-    <!-- 統計情報 -->
+    <!-- 表示単語管理機能 -->
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <h2 class="text-xl font-semibold text-gray-900">🫧 表示単語管理</h2>
+                <div class="flex gap-2">
+                    <a href="/display" class="px-4 py-2 bg-white hover:bg-gray-50 text-primary-700 font-medium rounded-lg transition-colors border border-primary-300">
+                        👁️ 表示画面を開く
+                    </a>
+                    <button class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors" onclick="loadDisplayWords()">
+                        🔄 リスト更新
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- 左：追加フォーム -->
+                <div class="space-y-12">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-6">単語を直接追加</h3>
+                        <label for="displayWord" class="block text-sm font-medium text-gray-700 mb-2">表示する単語</label>
+                        <div class="space-y-2">
+                            <input type="text" id="displayWord" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="例：AI / 火星 / カメラ">
+                            <select id="displayWordPos" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                <option value="">品詞を選択（任意）</option>
+                                <option value="名詞">名詞</option>
+                                <option value="動詞">動詞</option>
+                                <option value="形容詞">形容詞</option>
+                                <option value="形容動詞">形容動詞</option>
+                                <option value="副詞">副詞</option>
+                            </select>
+                            <button class="w-full px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white font-medium rounded-lg transition-colors" onclick="addDisplayWord()">追加</button>
+                        </div>
+                    </div>
+                        </div>
+                <div class="space-y-12">
+                    <div>
+                        <h3 class="text-lg font-medium text-gray-900 mb-6">文章から品詞付き単語を抽出して追加</h3>
+                        <label for="displaySentence" class="block text-sm font-medium text-gray-700 mb-2">文章</label>
+                        <textarea id="displaySentence" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="ここに文章を入力"></textarea>
+                        <div class="mt-3 flex items-center gap-3">
+                            <button class="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white font-medium rounded-lg transition-colors" onclick="addDisplaySentence()">抽出して追加</button>
+                            <span class="text-sm text-gray-500">名詞、動詞、形容詞、形容動詞、副詞を抽出します</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右：登録済み -->
+                <div class="col-span-2">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-medium text-gray-900">登録済み単語</h3>
+                        <button id="showDeleteAllWordsButton" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors">
+                            🗑️ 全削除
+                        </button>
+                    </div>
+                    <div id="wordsList" class="border border-gray-200 rounded-lg p-4 bg-gray-50 h-64 overflow-y-auto">
+                        <div class="text-center py-6">
+                            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                            <p class="text-gray-600 mt-2 text-sm">単語リストを読み込み中...</p>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計情報 -->
+    <!-- <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
                 <h2 class="text-xl font-semibold text-gray-900">📊 統計情報</h2>
@@ -78,17 +176,17 @@
             </div>
         </div>
         <div class="p-6">
-            <div id="statsArea">
+                <div id="statsArea">
                 <div class="text-center py-8">
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
                     <p class="text-gray-600 mt-2">統計情報を読み込み中...</p>
                 </div>
             </div>
         </div>
-    </div>
+    </div> -->
     
     <!-- 基本機能 -->
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+    <!-- <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900">📊 基本機能</h2>
         </div>
@@ -108,7 +206,7 @@
                 </button>
             </div>
         </div>
-    </div>
+    </div> -->
     <!-- 大喜利お題生成 -->
 <div class="bg-white rounded-xl shadow-lg overflow-hidden mt-8">
     <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
@@ -118,16 +216,27 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <!-- モデル学習 -->
             <div>
-                <h3 class="text-lg font-medium text-gray-900 mb-4">マルコフモデル学習</h3>
+                <h3 class="text-lg font-medium text-gray-900 mb-4">学習モデル作成（初回は必ず学習してください）</h3>
                 <div class="space-y-4">
                     <div class="border border-gray-300 rounded-lg p-4">
                         <form id="uploadForm" enctype="multipart/form-data">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
-                                お題テキストファイル（1行に1つのお題）
+                                お題テキストファイル（1行に1つのお題）<br><span class="text-red-600 text-sm">⚠️ 初回使用時は必ず学習してください</span>
                             </label>
                             <input type="file" id="odaiFile" class="w-full mb-4 p-2 border border-gray-300 rounded-lg" accept=".txt">
                             <button type="button" onclick="trainMarkovModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-                                マルコフモデルを学習
+                                マルコフモデルで学習</button>
+                            <button type="button" onclick="trainLLMModel()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
+                                LLMモデルで学習
+                            </button>
+                            <button type="button" onclick="trainThirdForceModel()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
+                                第三勢力で学習
+                            </button>
+                            <button type="button" onclick="trainFourthForceModel()" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
+                                第四勢力で学習
+                            </button>
+                            <button type="button" onclick="trainFifthForceModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors mt-2">
+                                🌟 第五の力（n-gram）で学習
                             </button>
                         </form>
                     </div>
@@ -147,17 +256,184 @@
                         <label for="useWords" class="ml-2 text-sm text-gray-700">
                             抽出単語をシードに使用
                         </label>
+                        </div>
+                    <div class="space-y-3">
+                        <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🎲 マルコフ連鎖でお題を生成
+                        </button>
+                        <button onclick="generateOdaiLLM()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🤖 LLMでお題を生成
+                        </button>
+                        <button onclick="generateOdaiThirdForce()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            ⚡ 第三勢力でお題を生成
+                        </button>
+                        <button onclick="generateOdaiFourthForce()" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🎨 第四勢力でお題を生成（単語から組み立て）
+                        </button>
+                        <button onclick="generateOdaiFifthForce()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
+                            🌟 第五の力（n-gram）でお題を生成
+                        </button>
+                        <div class="mt-4 space-y-2">
+                            <button onclick="saveLLMModel()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                💾 LLMモデルを保存
+                            </button>
+                            <button onclick="loadLLMModel()" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📂 LLMモデルを読み込み
+                            </button>
+                            <button onclick="getModelInfo()" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                ℹ️ モデル情報を確認
+                            </button>
+                            <button onclick="getThirdForceStats()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                ⚡ 第三勢力統計を確認
+                            </button>
+                            <button onclick="getFourthForceStats()" class="w-full bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🎨 第四勢力統計を確認
+                            </button>
+                            <button onclick="getFifthForceStats()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🌟 第五の力統計を確認
+                            </button>
+                            <button onclick="resetThirdForceModel()" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🔄 第三勢力をリセット
+                            </button>
+                            <button onclick="resetFourthForceModel()" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🔄 第四勢力をリセット
+                            </button>
+                            <button onclick="resetFifthForceModel()" class="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🔄 第五の力をリセット
+                            </button>
+                            <button onclick="learnFromHighRatings()" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                ⭐ 高評価から学習
+                            </button>
+                            <button onclick="learnFromDatabase()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🎯 データベースから高品質学習
+                            </button>
+                            <button onclick="migrateDatabase()" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🔧 データベースマイグレーション
+                            </button>
+                            <button onclick="getRatingStats()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📊 評価統計を確認
+                            </button>
+                        </div>
                     </div>
-                    <button onclick="generateOdai()" class="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors shadow-md">
-                        🎲 お題を生成
-                    </button>
+                </div>
+                
+                <!-- 第三勢力モデル管理セクション -->
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">🤖 第三勢力モデル管理</h3>
+                    <div class="space-y-4">
+                        <div class="flex gap-2">
+                            <input type="text" id="modelNameInput" placeholder="モデル名" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <input type="text" id="modelDescriptionInput" placeholder="説明（任意）" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveThirdForceModel()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                💾 モデルを保存
+                            </button>
+                            <button onclick="loadThirdForceModel()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📂 モデルを読み込み
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="listThirdForceModels()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📋 モデル一覧を表示
+                            </button>
+                            <button onclick="deleteThirdForceModel()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🗑️ モデルを削除
+                            </button>
+                        </div>
+                        <div id="modelList" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+                            <h4 class="font-medium text-gray-700 mb-2">保存されたモデル一覧</h4>
+                            <div id="modelListContent"></div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 第四勢力モデル管理セクション -->
+                <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">🎨 第四勢力モデル管理</h3>
+                    <div class="space-y-4">
+                        <div class="flex gap-2">
+                            <input type="text" id="fourthModelNameInput" placeholder="モデル名" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500">
+                            <input type="text" id="fourthModelDescriptionInput" placeholder="説明（任意）" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveFourthForceModel()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                💾 モデルを保存
+                            </button>
+                            <button onclick="loadFourthForceModel()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📂 モデルを読み込み
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="listFourthForceModels()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📋 モデル一覧を表示
+                            </button>
+                            <button onclick="deleteFourthForceModel()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🗑️ モデルを削除
+                            </button>
+                        </div>
+                        <div id="fourthModelList" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+                            <h4 class="font-medium text-gray-700 mb-2">保存されたモデル一覧</h4>
+                            <div id="fourthModelListContent"></div>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 第五の力（n-gram）モデル管理セクション -->
+                <div class="bg-white rounded-lg shadow-md p-6 mt-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">🌟 第五の力（n-gram）モデル管理</h3>
+                    <div class="space-y-4">
+                        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+                            <p class="text-sm text-blue-700">
+                                💡 n-gramベースの生成：単語の並びの統計を学習し、確率的にお題を生成します。
+                            </p>
+                        </div>
+
+                        <!-- 生成パラメータ -->
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">生成パラメータ</h4>
+                            <div class="flex items-center gap-4">
+                                <label for="ngramTemperature" class="text-sm text-gray-600">Temperature:</label>
+                                <input type="range" id="ngramTemperature" min="0.3" max="1.5" step="0.1" value="0.8" class="flex-1">
+                                <span id="temperatureValue" class="text-sm text-gray-600 min-w-[3rem]">0.8</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">低い値=保守的、高い値=創造的</p>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <input type="text" id="fifthModelNameInput" placeholder="モデル名" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveFifthForceModel()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                💾 モデルを保存
+                            </button>
+                            <button onclick="loadFifthForceModel()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📂 モデルを読み込み
+                            </button>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="listFifthForceModels()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                📋 モデル一覧を表示
+                            </button>
+                            <button onclick="deleteFifthForceModel()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                🗑️ モデルを削除
+                            </button>
+                        </div>
+                        <div id="fifthModelList" class="hidden mt-4 p-4 bg-gray-50 rounded-lg">
+                            <h4 class="font-medium text-gray-700 mb-2">保存されたモデル一覧</h4>
+                            <div id="fifthModelListContent"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-        
+
         <!-- 生成結果 -->
         <div class="mt-8">
             <h3 class="text-lg font-medium text-gray-900 mb-4">生成結果</h3>
+            <div id="generationMethod" class="mb-2 text-sm text-gray-600"></div>
             <div id="generatedOdaiArea" class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
                 <p class="text-gray-500">お題を生成するとここに表示されます</p>
             </div>
@@ -165,7 +441,42 @@
             <div class="mt-4 flex justify-end">
                 <button onclick="saveGeneratedOdai()" id="saveOdaiButton" class="bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors shadow-md hidden">
                     💾 お題を保存
-                </button>
+                    </button>
+            </div>
+        </div>
+        
+
+        <!-- 確定お題管理 -->
+        <div class="mt-8">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">確定お題管理</h3>
+            
+            <!-- 確定お題追加フォーム -->
+            <div class="mb-6">
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="text-md font-medium text-gray-900 mb-3">直接お題を追加</h4>
+                    <div class="flex gap-2">
+                        <input type="text" id="manualOdaiInput" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="お題を入力してください">
+                        <button onclick="addManualOdai()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors">
+                            ➕ 追加
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 確定お題一覧 -->
+            <div class="border border-gray-300 rounded-lg p-4 min-h-[200px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="text-md font-medium text-gray-900">確定お題一覧</h4>
+                    <button onclick="loadConfirmedOdais()" class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors">
+                        🔄 更新
+                    </button>
+                </div>
+                <div id="confirmedOdaiArea">
+                    <div class="text-center py-4">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+                        <p class="text-gray-600 mt-2">確定お題を読み込み中...</p>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -182,186 +493,94 @@
     </div>
 </div>
 
-<script>
-let currentPage = 1;
-const perPage = 20;
-let generatedOdaiList = [];
-
-// マルコフモデルを学習
-async function trainMarkovModel() {
-    const fileInput = document.getElementById('odaiFile');
-    if (!fileInput.files || fileInput.files.length === 0) {
-        addLog('❌ ファイルを選択してください', 'error');
-        return;
-    }
-    
-    const file = fileInput.files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    addLog('🔄 マルコフモデルを学習中...');
-    
-    try {
-        const response = await fetch('/api/odai/train', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && !result.error) {
-            addLog(`✅ ${result.message}`, 'success');
-            addLog(`📊 ${result.model_states}状態, ${result.start_states}開始状態`, 'info');
-        } else {
-            addLog(`❌ 学習エラー: ${result.error || '不明なエラー'}`, 'error');
-        }
-    } catch (error) {
-        addLog(`❌ 通信エラー: ${error.message}`, 'error');
-    }
-}
-
-// お題を生成
-async function generateOdai() {
-    const count = document.getElementById('odaiCount').value;
-    const useWords = document.getElementById('useWords').checked;
-    
-    const formData = new FormData();
-    formData.append('count', count);
-    formData.append('use_words', useWords);
-    
-    addLog(`🎲 ${count}個のお題を生成中...`);
-    
-    try {
-        const response = await fetch('/api/odai/generate', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && !result.error) {
-            addLog(`✅ ${result.message}`, 'success');
-            
-            // 生成結果を表示
-            generatedOdaiList = result.odai_list;
-            displayGeneratedOdai(result.odai_list, result.seed_words_used);
-            
-            // 保存ボタンを表示
-            document.getElementById('saveOdaiButton').classList.remove('hidden');
-        } else {
-            addLog(`❌ 生成エラー: ${result.error || '不明なエラー'}`, 'error');
-        }
-    } catch (error) {
-        addLog(`❌ 通信エラー: ${error.message}`, 'error');
-    }
-}
-
-// 生成されたお題を表示
-function displayGeneratedOdai(odaiList, seedWords) {
-    const odaiArea = document.getElementById('generatedOdaiArea');
-    
-    let html = '';
-    
-    if (seedWords && seedWords.length > 0) {
-        html += '<div class="mb-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">';
-        html += '<p class="text-sm text-blue-700 font-medium">使用した単語: ';
-        html += seedWords.map(word => `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full mr-1 mb-1">${word}</span>`).join('');
-        html += '</p></div>';
-    }
-    
-    html += '<div class="space-y-2">';
-    
-    odaiList.forEach((odai, index) => {
-        html += `
-            <div class="p-3 border border-gray-200 hover:bg-gray-50 rounded-lg">
-                <div class="flex items-start">
-                    <span class="text-gray-500 mr-2">${index + 1}.</span>
-                    <p class="text-gray-900">${odai}</p>
+<!-- 出題確認モーダル -->
+<div id="activateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mt-2">出題確認</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">
+                    本当に出題しますか？
+                </p>
+                <div class="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <p class="text-sm font-medium text-gray-900" id="modalOdaiText"></p>
                 </div>
             </div>
-        `;
-    });
-    
-    html += '</div>';
-    
-    odaiArea.innerHTML = html;
-}
+            <div class="items-center px-4 py-3">
+                <button id="confirmActivate" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-24 mr-2 shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                    OK
+                </button>
+                <button id="cancelActivate" class="px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-24 shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
-// 生成されたお題を保存
-async function saveGeneratedOdai() {
-    if (generatedOdaiList.length === 0) {
-        addLog('⚠️ 保存するお題がありません', 'error');
-        return;
-    }
-    
-    const formData = new FormData();
-    generatedOdaiList.forEach(odai => {
-        formData.append('odai_list', odai);
-    });
-    
-    addLog(`💾 ${generatedOdaiList.length}個のお題を保存中...`);
-    
-    try {
-        const response = await fetch('/api/odai/save', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-        
-        if (response.ok && !result.error) {
-            addLog(`✅ ${result.message}`, 'success');
-            loadSavedOdai();
-        } else {
-            addLog(`❌ 保存エラー: ${result.error || '不明なエラー'}`, 'error');
-        }
-    } catch (error) {
-        addLog(`❌ 通信エラー: ${error.message}`, 'error');
-    }
-}
+<!-- 生成結果出題確認モーダル -->
+<div id="generateActivateModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+                <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mt-2">生成結果を出題</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500 mb-2">
+                    以下のお題を確定お題に追加して出題しますか？
+                </p>
+                <p id="generateOdaiText" class="text-blue-600 font-medium"></p>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button id="cancelGenerateActivate" class="bg-gray-500 text-white text-base font-medium px-4 py-2 rounded-md shadow-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 mr-2">
+                    キャンセル
+                </button>
+                <button id="confirmGenerateActivate" class="bg-green-600 text-white text-base font-medium px-4 py-2 rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-300">
+                    確定して出題
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
-// 保存済みのお題を読み込み
-async function loadSavedOdai() {
-    const odaiArea = document.getElementById('savedOdaiArea');
-    
-    try {
-        const response = await fetch('/api/odai/list');
-        const result = await response.json();
-        
-        if (response.ok && !result.error) {
-            if (result.topics.length === 0) {
-                odaiArea.innerHTML = '<p class="text-gray-500 text-center py-4">保存されたお題はありません</p>';
-                return;
-            }
-            
-            let html = '<div class="space-y-2">';
-            
-            result.topics.forEach((topic, index) => {
-                html += `
-                    <div class="p-3 border border-gray-200 hover:bg-gray-50 rounded-lg">
-                        <div class="flex items-start">
-                            <span class="text-gray-500 mr-2">${index + 1}.</span>
-                            <div>
-                                <p class="text-gray-900">${topic.content}</p>
-                                <p class="text-xs text-gray-500 mt-1">${topic.created_at}</p>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
-            
-            html += '</div>';
-            
-            odaiArea.innerHTML = html;
-        } else {
-            odaiArea.innerHTML = '<p class="text-red-500 text-center py-4">お題の読み込みに失敗しました</p>';
-        }
-    } catch (error) {
-        odaiArea.innerHTML = '<p class="text-red-500 text-center py-4">通信エラーが発生しました</p>';
-    }
-}
+<!-- 単語全削除確認モーダル -->
+<div id="deleteAllWordsModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 mt-2">⚠️ 登録済み単語の全削除</h3>
+            <div class="mt-2 px-7 py-3">
+                <p class="text-sm text-gray-500">
+                    登録されているすべての単語を削除します。<br>
+                    この操作は取り消せません。<br>
+                    本当に実行しますか？
+                </p>
+            </div>
+            <div class="items-center px-4 py-3">
+                <button id="cancelDeleteAllWords" class="bg-gray-500 text-white text-base font-medium px-4 py-2 rounded-md shadow-sm hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 mr-2">
+                    キャンセル
+                </button>
+                <button id="confirmDeleteAllWords" class="bg-red-600 text-white text-base font-medium px-4 py-2 rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300">
+                    全削除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
-
+<script>
 // ログ出力関数
 function addLog(message, type = 'info') {
     const logArea = document.getElementById('logArea');
@@ -373,327 +592,106 @@ function addLog(message, type = 'info') {
     logArea.scrollTop = logArea.scrollHeight;
 }
 
-
-// データベース修復
-async function repairDatabase() {
-    addLog('🔧 データベース修復を開始...');
+// ニュース収集
+async function collectNews() {
+    const source = document.getElementById('newsSource').value;
+    const maxArticles = document.getElementById('maxArticles').value;
+    
+    addLog(`📰 ${source}から${maxArticles}件の記事収集を開始...`);
     
     try {
-        const response = await fetch('/api/admin/repair-database', {method: 'POST'});
+        const formData = new URLSearchParams();
+        formData.append('source', source);
+        formData.append('max_articles', maxArticles);
+        
+        const response = await fetch('/api/scraping/collect-news', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
         const result = await response.json();
         
         if (response.ok) {
             addLog(`✅ ${result.message}`, 'success');
-            loadStats();
-            loadWords();
-        } else {
-            addLog(`❌ 修復エラー: ${result.detail}`, 'error');
-        }
-    } catch (error) {
-        addLog(`❌ 通信エラー: ${error.message}`, 'error');
-    }
-}
-
-// データベース状況確認
-async function checkDatabaseStatus() {
-    addLog('📊 データベース状況を確認中...');
-    
-    try {
-        const response = await fetch('/api/admin/database-status');
-        const result = await response.json();
-        
-        if (response.ok) {
-            addLog(`🏥 全体状況: ${result.overall_status}`, 
-                   result.overall_status === 'healthy' ? 'success' : 'error');
-            
-            // result.tables を参照するように修正
-            if (result.tables) {
-                Object.entries(result.tables).forEach(([table, status]) => {
-                    if (status.exists) {
-                        addLog(`✅ ${table}: ${status.count}件`, 'success');
-                    } else {
-                        addLog(`❌ ${table}: テーブル不存在`, 'error');
-                    }
-                });
+            addLog(`📊 収集: ${result.collected}件, 保存: ${result.saved}件`);
+            if (result.articles && result.articles.length > 0) {
+                addLog(`📝 取得記事例: "${result.articles[0].title}"`);
             }
+            loadStats(); // 統計更新
         } else {
-            addLog(`❌ 状況確認エラー`, 'error');
+            addLog(`❌ エラー: ${result.detail}`, 'error');
         }
     } catch (error) {
         addLog(`❌ 通信エラー: ${error.message}`, 'error');
     }
 }
 
-
-// 完全パイプライン（全サイト・全カテゴリ）
-async function runFullPipelineAll() {
-    const articlesPerSite = document.getElementById('articlesPerSite').value;
-    
-    addLog(`🌐 全サイト・全カテゴリ収集開始 - 各サイト${articlesPerSite}件`);
+// 単語抽出
+async function extractWords() {
+    addLog('🔤 記事から単語抽出を開始...');
     
     try {
-        const formData = new FormData();
-        formData.append('articles_per_site', articlesPerSite);
+        const formData = new URLSearchParams();
+        formData.append('max_articles', '10');
         
-        const response = await fetch('/api/scraping/full-pipeline-all', {
+        const response = await fetch('/api/scraping/extract-words', {
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-            body: new URLSearchParams(formData)
+            body: formData
         });
         
         const result = await response.json();
         
         if (response.ok) {
-            addLog(`✅ 全カテゴリ収集完了`, 'success');
-            addLog(`📊 収集: ${result.collected}件, 保存: ${result.saved}件`, 'info');
-            addLog(`🔤 単語: ${result.words}個`, 'info');
-            
-            // カテゴリ別統計
-            if (result.categories) {
-                addLog(`📂 カテゴリ別統計:`, 'info');
-                Object.entries(result.categories).forEach(([category, count]) => {
-                    const categoryNames = {
-                        'sports': 'スポーツ',
-                        'entertainment': '芸能',
-                        'politics': '政治',
-                        'general': '総合'
-                    };
-                    addLog(`  ${categoryNames[category] || category}: ${count}件`, 'info');
-                });
+            addLog(`✅ ${result.message}`, 'success');
+            addLog(`📊 処理記事: ${result.processed_articles}件, 抽出単語: ${result.extracted_words}個`);
+            if (result.top_words && Object.keys(result.top_words).length > 0) {
+                const topWordsText = Object.entries(result.top_words).slice(0, 3)
+                    .map(([word, freq]) => `${word}(${freq})`).join(', ');
+                addLog(`🔝 頻出単語: ${topWordsText}`);
             }
-            
-            // ソース別統計
-            if (result.sources) {
-                addLog(`📰 ソース別統計:`, 'info');
-                Object.entries(result.sources).forEach(([source, count]) => {
-                    addLog(`  ${source}: ${count}件`, 'info');
-                });
-            }
-            
-            await loadStats();
-            await loadWords();
+            loadStats(); // 統計更新
         } else {
-            addLog(`❌ エラー: ${result.detail || 'パイプライン実行失敗'}`, 'error');
+            addLog(`❌ エラー: ${result.detail}`, 'error');
         }
     } catch (error) {
-        addLog(`❌ エラー: ${error.message}`, 'error');
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
     }
 }
 
-// 単語リスト読み込み
-async function loadWords(page = 1, search = null) {
+// 完全パイプライン実行
+async function runFullPipeline() {
+    const source = document.getElementById('newsSource').value;
+    const maxArticles = document.getElementById('maxArticles').value;
+    
+    addLog(`⚡ 完全パイプライン実行開始 (${source}, ${maxArticles}件)`);
+    
     try {
-        let url = `/api/words/list?page=${page}&per_page=20`;
-        if (search) {
-            url += `&search=${encodeURIComponent(search)}`;
-        }
+        const formData = new URLSearchParams();
+        formData.append('source', source);
+        formData.append('max_articles', maxArticles);
         
-        const response = await fetch(url);
-        const data = await response.json();
+        const response = await fetch('/api/scraping/full-pipeline', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
         
-        if (response.ok && !data.error) {
-            displayWords(data.words);
-            displayPagination(data.page, data.total_pages, data.search);
-            currentPage = page;
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ パイプライン完了: ${result.message}`, 'success');
+            addLog(`📰 収集: ${result.news_collection.saved}件の新記事`);
+            addLog(`🔤 抽出: ${result.word_extraction.extracted_words}個の単語`);
+            loadStats(); // 統計更新
         } else {
-            document.getElementById('wordsArea').innerHTML = 
-                '<div class="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg text-center">単語の読み込みに失敗しました</div>';
+            addLog(`❌ エラー: ${result.detail}`, 'error');
         }
     } catch (error) {
-        document.getElementById('wordsArea').innerHTML = 
-            '<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">単語の読み込みでエラーが発生しました</div>';
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
     }
 }
-
-// 単語表示
-function displayWords(words) {
-    if (!words || words.length === 0) {
-        document.getElementById('wordsArea').innerHTML = 
-            '<div class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-center">単語が見つかりませんでした</div>';
-        return;
-    }
-    
-    const wordsHTML = `
-        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-gray-200">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">単語</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分類</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">頻度</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">記事</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">出現文脈</th>
-                        </tr>
-                    </thead>
-                    <tbody class="bg-white divide-y divide-gray-200">
-                        ${words.map(word => `
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-semibold text-gray-900">${word.word}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
-                                        ${getWordTypeLabel(word.word_type)}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-                                        ${word.frequency}回
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="text-sm text-gray-900">
-                                        <a href="${word.article_url || '#'}" target="_blank" 
-                                           class="text-primary-600 hover:text-primary-800 hover:underline block truncate max-w-xs" 
-                                           title="${word.article_title || 'タイトル不明'}">
-                                            ${word.article_title ? 
-                                              (word.article_title.length > 40 ? 
-                                                word.article_title.substring(0, 40) + '...' : 
-                                                word.article_title) : 
-                                              'タイトル不明'}
-                                        </a>
-                                        <div class="text-xs text-gray-500 mt-1">
-                                            <span class="px-2 py-1 bg-gray-100 text-gray-700 rounded">
-                                                ${word.article_source || 'ソース不明'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="text-sm text-gray-700 max-w-xs">
-                                        ${word.context ? 
-                                          (word.context.length > 60 ? 
-                                            word.context.substring(0, 60) + '...' : 
-                                            word.context) : 
-                                          '<span class="text-gray-400">文脈なし</span>'}
-                                    </div>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-    
-    document.getElementById('wordsArea').innerHTML = wordsHTML;
-}
-
-// 単語タイプラベル
-function getWordTypeLabel(type) {
-    const labels = {
-        'proper_nouns': '固有名詞',
-        'common_nouns': '一般名詞',
-        'keywords': 'キーワード',
-        'important_terms': '重要語句'
-    };
-    return labels[type] || type;
-}
-
-// ページネーション表示
-function displayPagination(currentPage, totalPages, search) {
-    if (totalPages <= 1) {
-        document.getElementById('wordsPagination').innerHTML = '';
-        return;
-    }
-    
-    let paginationHTML = '<div class="flex justify-center items-center space-x-2">';
-    
-    // 前のページ
-    if (currentPage > 1) {
-        paginationHTML += `
-            <button onclick="loadWords(${currentPage - 1}, '${search || ''}')" 
-                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
-                前
-            </button>`;
-    }
-    
-    // ページ番号
-    const startPage = Math.max(1, currentPage - 2);
-    const endPage = Math.min(totalPages, currentPage + 2);
-    
-    // 最初のページ
-    if (startPage > 1) {
-        paginationHTML += `
-            <button onclick="loadWords(1, '${search || ''}')" 
-                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
-                1
-            </button>`;
-        if (startPage > 2) {
-            paginationHTML += '<span class="px-2 text-gray-500">...</span>';
-        }
-    }
-    
-    for (let i = startPage; i <= endPage; i++) {
-        paginationHTML += `
-            <button onclick="loadWords(${i}, '${search || ''}')" 
-                    class="px-3 py-2 text-sm font-medium ${i === currentPage ? 
-                        'text-white bg-primary-600 border-primary-600' : 
-                        'text-gray-500 bg-white border-gray-300 hover:bg-gray-50 hover:text-gray-700'
-                    } border rounded-lg transition-colors">
-                ${i}
-            </button>`;
-    }
-    
-    // 最後のページ
-    if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-            paginationHTML += '<span class="px-2 text-gray-500">...</span>';
-        }
-        paginationHTML += `
-            <button onclick="loadWords(${totalPages}, '${search || ''}')" 
-                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
-                ${totalPages}
-            </button>`;
-    }
-    
-    // 次のページ
-    if (currentPage < totalPages) {
-        paginationHTML += `
-            <button onclick="loadWords(${currentPage + 1}, '${search || ''}')" 
-                    class="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-700 transition-colors">
-                次
-            </button>`;
-    }
-    
-    paginationHTML += '</div>';
-    document.getElementById('wordsPagination').innerHTML = paginationHTML;
-}
-
-// 単語検索
-async function searchWords() {
-    const searchTerm = document.getElementById('wordSearch').value.trim();
-    if (searchTerm) {
-        await loadWords(1, searchTerm);
-    } else {
-        await loadWords(1);
-    }
-}
-
-// ページ読み込み時の初期化
-document.addEventListener('DOMContentLoaded', function() {
-    loadStats();
-    loadWords();
-    const existingInit = window.onload || function(){};
-    
-    window.onload = function() {
-        existingInit();
-        loadSavedOdai();
-    };
-    
-    // 検索ボックスでEnterキー対応
-    const searchInput = document.getElementById('wordSearch');
-    if (searchInput) {
-        searchInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchWords();
-            }
-        });
-    }
-    
-    addLog('🚀 拡張管理画面を初期化しました');
-});
 
 // 統計情報読み込み
 async function loadStats() {
@@ -703,43 +701,73 @@ async function loadStats() {
         
         if (response.ok) {
             const statsHTML = `
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="text-center">
-                        <div class="text-3xl font-bold text-primary-600">${stats.articles.total}</div>
-                        <div class="text-sm text-gray-600">記事数</div>
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-primary">${stats.total_articles}</h3>
+                            <small>記事数</small>
+                        </div>
                     </div>
-                    <div class="text-center">
-                        <div class="text-3xl font-bold text-green-600">${stats.words.total}</div>
-                        <div class="text-sm text-gray-600">抽出単語数</div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-success">${stats.total_words}</h3>
+                            <small>抽出単語数</small>
+                        </div>
                     </div>
-                    <div class="text-center">
-                        <div class="text-3xl font-bold text-yellow-600">${stats.ogiri_topics || 0}</div>
-                        <div class="text-sm text-gray-600">お題数</div>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-3xl font-bold text-blue-600">${stats.training_topics || 0}</div>
-                        <div class="text-sm text-gray-600">学習データ</div>
+                    <div class="col-md-6">
+                        <h5>ソース別統計</h5>
+                        ${Object.entries(stats.source_distribution).map(([source, count]) => 
+                            `<span class="badge bg-info me-2">${source}: ${count}件</span>`
+                        ).join('')}
                     </div>
                 </div>
-                <div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">ソース別統計</h3>
-                    <div class="flex flex-wrap gap-2">
-                        ${Object.entries(stats.articles.sources || {}).map(([source, count]) => 
-                            `<span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-medium rounded-full">${source}: ${count}件</span>`
-                        ).join('')}
+                
+                <hr>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>頻出単語 TOP10</h5>
+                        ${stats.top_words.length > 0 ? 
+                            `<div class="list-group list-group-flush">
+                                ${stats.top_words.slice(0, 10).map((word, index) => 
+                                    `<div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span>${word.word} <small class="text-muted">(${word.type})</small></span>
+                                        <span class="badge bg-primary">${word.frequency}</span>
+                                    </div>`
+                                ).join('')}
+                            </div>` :
+                            '<p class="text-muted">まだ単語が抽出されていません</p>'
+                        }
+                    </div>
+                    <div class="col-md-6">
+                        <h5>最新記事</h5>
+                        ${stats.recent_articles.length > 0 ?
+                            `<div class="list-group list-group-flush">
+                                ${stats.recent_articles.map(article => 
+                                    `<div class="list-group-item">
+                                        <div class="fw-bold">${article.title}</div>
+                                        <small class="text-muted">${article.source} - ${article.created_at}</small>
+                                    </div>`
+                                ).join('')}
+                            </div>` :
+                            '<p class="text-muted">まだ記事がありません</p>'
+                        }
                     </div>
                 </div>
             `;
             
             document.getElementById('statsArea').innerHTML = statsHTML;
+        } else {
+            document.getElementById('statsArea').innerHTML = 
+                '<div class="alert alert-warning">統計情報の読み込みに失敗しました</div>';
         }
     } catch (error) {
         document.getElementById('statsArea').innerHTML = 
-            '<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">統計情報の読み込みでエラーが発生しました</div>';
+            '<div class="alert alert-danger">統計情報の読み込みでエラーが発生しました</div>';
     }
 }
 
-// その他の既存関数
+// サンプルデータ投入
 async function initSampleData() {
     addLog('🎲 サンプルデータを投入中...');
     
@@ -758,6 +786,7 @@ async function initSampleData() {
     }
 }
 
+// 統計確認
 async function checkStats() {
     addLog('📊 統計情報を確認中...');
     
@@ -774,6 +803,2014 @@ async function checkStats() {
         }
     } catch (error) {
         addLog(`❌ 統計確認エラー: ${error.message}`, 'error');
+    }
+}
+
+// 表示単語の追加
+async function addDisplayWord() {
+    const word = document.getElementById('displayWord').value.trim();
+    const pos = document.getElementById('displayWordPos').value;
+    
+    if (!word) {
+        addLog('❌ 単語が入力されていません', 'error');
+        return;
+    }
+    
+    addLog(`🫧 単語「${word}」${pos ? `（${pos}）` : ''}を追加中...`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('word', word);
+        if (pos) {
+            formData.append('pos', pos);
+        }
+        
+        const response = await fetch('/api/display/words', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 単語「${word}」${pos ? `（${pos}）` : ''}を追加しました`, 'success');
+            document.getElementById('displayWord').value = '';
+            document.getElementById('displayWordPos').value = '';
+            loadDisplayWords();
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 文章から名詞を抽出して追加
+async function addDisplaySentence() {
+    const sentence = document.getElementById('displaySentence').value.trim();
+    if (!sentence) {
+        addLog('❌ 文章が入力されていません', 'error');
+        return;
+    }
+    addLog(`🫧 文章から名詞を抽出して追加中...`);
+    try {
+        const formData = new URLSearchParams();
+        formData.append('sentence', sentence);
+        const response = await fetch('/api/display/sentence', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        const result = await response.json();
+        if (response.ok) {
+            const nouns = result?.nouns || (result?.words ? result.words.map(w => w.word) : []);
+            addLog(`✅ 抽出して追加しました: ${nouns.join(', ')}`, 'success');
+            document.getElementById('displaySentence').value = '';
+            loadDisplayWords();
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 表示単語リスト読み込み
+async function loadDisplayWords() {
+    try {
+        const response = await fetch('/api/display/words');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const wordsHTML = result.words.length > 0 
+                ? result.words.map(word => `
+                    <div class="flex justify-between items-center mb-1 p-2 border border-gray-200 rounded hover:bg-gray-100">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-medium text-sm">${word.word}</span>
+                            ${word.pos ? `<span class="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">${word.pos}</span>` : ''}
+                        </div>
+                        <button class="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors" onclick="deleteDisplayWord(${word.id})">
+                            削除
+                        </button>
+                    </div>`
+                ).join('')
+                : '<p class="text-gray-500 text-center py-4">まだ単語が登録されていません</p>';
+            
+            document.getElementById('wordsList').innerHTML = wordsHTML;
+        } else {
+            document.getElementById('wordsList').innerHTML = 
+                '<div class="alert alert-warning">単語リストの読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('wordsList').innerHTML = 
+            '<div class="alert alert-danger">単語リストの読み込みでエラーが発生しました</div>';
+    }
+}
+
+// 表示単語の削除
+async function deleteDisplayWord(wordId) {
+    addLog(`🗑️ 単語ID「${wordId}」を削除中...`);
+    
+    try {
+        const response = await fetch(`/api/display/words/${wordId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            addLog('✅ 単語を削除しました', 'success');
+            loadDisplayWords(); // 単語リスト更新
+        } else {
+            const result = await response.json();
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 単語全削除確認モーダルを表示
+function showDeleteAllWordsModal() {
+    console.log('showDeleteAllWordsModal called');
+    const modal = document.getElementById('deleteAllWordsModal');
+    console.log('modal element:', modal);
+    if (modal) {
+        modal.classList.remove('hidden');
+        console.log('modal shown');
+    } else {
+        console.error('deleteAllWordsModal not found');
+    }
+}
+
+// 単語全削除確認モーダルを非表示
+function hideDeleteAllWordsModal() {
+    console.log('hideDeleteAllWordsModal called');
+    const modal = document.getElementById('deleteAllWordsModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        console.log('modal hidden');
+    }
+}
+
+// 単語全削除を実行
+async function confirmDeleteAllWords() {
+    console.log('confirmDeleteAllWords called');
+    addLog('🗑️ 登録済み単語を全削除中...');
+    
+    try {
+        console.log('sending DELETE request to /api/display/words/all');
+        const response = await fetch('/api/display/words/all', {
+            method: 'DELETE'
+        });
+        
+        console.log('response status:', response.status);
+        
+        if (response.ok) {
+            const result = await response.json();
+            console.log('delete result:', result);
+            addLog('✅ すべての単語を削除しました', 'success');
+            loadDisplayWords(); // 単語リスト更新
+            hideDeleteAllWordsModal(); // モーダルを閉じる
+        } else {
+            const result = await response.json();
+            console.error('delete failed:', result);
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        console.error('delete error:', error);
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+async function generateOdai() {
+  const count = document.getElementById("odaiCount").value || 30;
+
+  const form = new URLSearchParams();
+  form.append("count", count);
+  form.append("use_display_words", "true");
+
+  addLog("🎲 マルコフ連鎖でお題を生成中...");
+
+  try {
+    // タイムアウト処理を追加（30秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const res = await fetch("/api/odai/generate", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    
+    addLog(`🔍 マルコフ生成レスポンス: ${JSON.stringify(data)}`);
+
+    if (res.ok) {
+      // 生成結果の表示を無効化（ログのみ）
+      addLog(`✅ マルコフで${data.count}個のお題を生成しました`, "success");
+    } else {
+      addLog(`❌ 生成エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      addLog(`❌ マルコフ生成タイムアウト: 30秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ マルコフ生成エラー: ${error.message}`, "error");
+    }
+  }
+}
+
+async function generateOdaiLLM() {
+  const count = document.getElementById("odaiCount").value || 30;
+
+  const form = new URLSearchParams();
+  form.append("count", count);
+  form.append("use_display_words", "true");
+
+  addLog("🤖 LLMでお題を生成中...");
+  
+  try {
+    // タイムアウト処理を追加（30秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    
+    const res = await fetch("/api/odai/generate-llm", {
+      method: "POST",
+      headers: {"Content-Type": "application/x-www-form-urlencoded"},
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    
+    addLog(`🔍 LLM生成レスポンス: ${JSON.stringify(data)}`);
+
+    if (res.ok) {
+      // 生成結果の表示を無効化（ログのみ）
+      addLog(`✅ LLMで${data.count}個のお題を生成しました`, "success");
+    } else {
+      addLog(`❌ LLM生成エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      addLog(`❌ LLM生成タイムアウト: 30秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ LLM生成エラー: ${error.message}`, "error");
+    }
+  }
+}
+
+async function trainMarkovModel() {
+  const fileInput = document.getElementById("odaiFile");
+  if (!fileInput.files.length) {
+    addLog("❌ ファイルを選択してください", "error");
+    return;
+  }
+  const form = new FormData();
+  form.append("file", fileInput.files[0]);
+  addLog("📚 マルコフモデルで学習を開始します...");
+  
+  try {
+    // タイムアウト処理を追加（60秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    
+    addLog("📤 ファイルをアップロード中...");
+    const res = await fetch("/api/odai/train", { 
+      method: "POST", 
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    addLog("📥 レスポンスを受信中...");
+    const data = await res.json();
+    
+    addLog(`🔍 マルコフ学習レスポンス: ${JSON.stringify(data)}`);
+    
+    if (res.ok) {
+      addLog(`✅ ${data.message}（チェイン: ${data.chain_size}）`, "success");
+    } else {
+      addLog(`❌ 学習エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      addLog(`❌ マルコフ学習タイムアウト: 60秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+  }
+}
+
+async function trainLLMModel() {
+  const fileInput = document.getElementById("odaiFile");
+  if (!fileInput.files.length) {
+    addLog("❌ ファイルを選択してください", "error");
+    return;
+  }
+  const form = new FormData();
+  form.append("file", fileInput.files[0]);
+  addLog("🤖 LLMモデルで学習を開始します...");
+  
+  try {
+    // タイムアウト処理を追加（60秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    
+    addLog("📤 ファイルをアップロード中...");
+    const res = await fetch("/api/odai/train-llm", { 
+      method: "POST", 
+      body: form,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    addLog("📥 レスポンスを受信中...");
+    const data = await res.json();
+    
+    addLog(`🔍 LLM学習レスポンス: ${JSON.stringify(data)}`);
+    
+    if (res.ok) {
+      addLog(`✅ ${data.message}（テンプレート: ${data.templates}, キーワード: ${data.keywords}）`, "success");
+    } else {
+      addLog(`❌ 学習エラー: ${data.detail || "不明なエラー"}`, "error");
+    }
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      addLog(`❌ LLM学習タイムアウト: 60秒以内に完了しませんでした`, "error");
+    } else {
+      addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+  }
+}
+
+
+// LLMモデル管理関数
+async function saveLLMModel() {
+    addLog("💾 LLMモデルを保存中...");
+    try {
+        const res = await fetch("/api/odai/save-model", { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            addLog(`✅ ${data.message} (ファイルサイズ: ${data.file_size} bytes)`, "success");
+            addLog(`📊 テンプレート: ${data.templates}個, キーワード: ${data.keywords}個`, "success");
+        } else {
+            addLog(`❌ 保存エラー: ${data.detail}`, "error");
+        }
+    } catch (e) {
+        addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+}
+
+async function loadLLMModel() {
+    addLog("📂 LLMモデルを読み込み中...");
+    try {
+        const res = await fetch("/api/odai/load-model", { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            addLog(`✅ ${data.message}`, "success");
+            addLog(`📊 テンプレート: ${data.templates}個, キーワード: ${data.keywords}個`, "success");
+        } else {
+            addLog(`❌ 読み込みエラー: ${data.detail}`, "error");
+        }
+    } catch (e) {
+        addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+}
+
+async function getModelInfo() {
+    addLog("ℹ️ モデル情報を取得中...");
+    try {
+        const res = await fetch("/api/odai/model-info");
+        const data = await res.json();
+        if (res.ok) {
+            addLog(`📊 現在のモデル情報:`, "info");
+            addLog(`  テンプレート: ${data.templates}個`, "info");
+            addLog(`  キーワード: ${data.keywords}個`, "info");
+            addLog(`  ファイル存在: ${data.file_exists ? 'あり' : 'なし'}`, "info");
+        } else {
+            addLog(`❌ 情報取得エラー: ${data.detail}`, "error");
+        }
+    } catch (e) {
+        addLog(`❌ 通信エラー: ${e.message}`, "error");
+    }
+}
+
+// 確定お題関連の関数
+async function addToConfirmedOdais(odaiText) {
+    addLog(`➕ 確定お題に追加中: ${odaiText}`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('odai_text', odaiText);
+        formData.append('source', 'generated');
+        
+        const response = await fetch('/api/confirmed-odais', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 確定お題に追加しました: ${odaiText}`, 'success');
+            loadConfirmedOdais(); // 確定お題一覧を更新
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+async function addManualOdai() {
+    const odaiText = document.getElementById('manualOdaiInput').value.trim();
+    
+    if (!odaiText) {
+        addLog('❌ お題が入力されていません', 'error');
+        return;
+    }
+    
+    addLog(`➕ 手動で確定お題を追加中: ${odaiText}`);
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('odai_text', odaiText);
+        formData.append('source', 'manual');
+        
+        const response = await fetch('/api/confirmed-odais', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 確定お題に追加しました: ${odaiText}`, 'success');
+            document.getElementById('manualOdaiInput').value = '';
+            loadConfirmedOdais(); // 確定お題一覧を更新
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+async function loadConfirmedOdais() {
+    try {
+        const response = await fetch('/api/confirmed-odais');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const odaisHTML = result.odais.length > 0 
+                ? result.odais.map(odai => `
+                    <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50 ${odai.is_active ? 'bg-yellow-50 border-yellow-200' : ''}">
+                        <div class="flex-1">
+                            <span class="font-medium ${odai.is_active ? 'text-yellow-800' : ''}">${odai.odai_text}</span>
+                            <span class="ml-2 text-xs ${odai.is_active ? 'text-yellow-600' : 'text-gray-500'}">(${odai.source === 'manual' ? '手動' : '生成'})</span>
+                            ${odai.is_active ? '<span class="ml-2 px-2 py-1 text-xs bg-yellow-200 text-yellow-800 rounded font-medium">出題中</span>' : ''}
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="showActivateModal(${odai.id}, '${odai.odai_text.replace(/'/g, "\\'")}')" class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors">
+                                ${odai.is_active ? '変更' : '出題'}
+                            </button>
+                            <button onclick="deleteConfirmedOdai(${odai.id})" class="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors">
+                                削除
+                            </button>
+                        </div>
+                    </div>
+                `).join('')
+                : '<p class="text-gray-500 text-center py-4">まだ確定お題がありません</p>';
+            
+            document.getElementById('confirmedOdaiArea').innerHTML = odaisHTML;
+        } else {
+            document.getElementById('confirmedOdaiArea').innerHTML = 
+                '<div class="text-red-500 text-center py-4">確定お題の読み込みに失敗しました</div>';
+        }
+    } catch (error) {
+        document.getElementById('confirmedOdaiArea').innerHTML = 
+            '<div class="text-red-500 text-center py-4">確定お題の読み込みでエラーが発生しました</div>';
+    }
+}
+
+async function deleteConfirmedOdai(odaiId) {
+    addLog(`🗑️ 確定お題ID「${odaiId}」を削除中...`);
+    
+    try {
+        const response = await fetch(`/api/confirmed-odais/${odaiId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            addLog('✅ 確定お題を削除しました', 'success');
+            loadConfirmedOdais(); // 確定お題一覧を更新
+        } else {
+            const result = await response.json();
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// 出題確認モーダル関連の変数
+let currentOdaiId = null;
+let currentGenerateOdaiText = null; // 現在選択されている生成結果のお題テキスト
+
+// 出題確認モーダルを表示
+function showActivateModal(odaiId, odaiText) {
+    console.log('showActivateModalが呼び出されました');
+    console.log('odaiId:', odaiId);
+    console.log('odaiText:', odaiText);
+    
+    currentOdaiId = odaiId;
+    const modalText = document.getElementById('modalOdaiText');
+    const modal = document.getElementById('activateModal');
+    
+    console.log('modalText:', modalText);
+    console.log('modal:', modal);
+    
+    if (modalText) {
+        modalText.textContent = odaiText;
+    } else {
+        console.error('modalOdaiText要素が見つかりません');
+    }
+    
+    if (modal) {
+        modal.classList.remove('hidden');
+        console.log('モーダルを表示しました');
+    } else {
+        console.error('activateModal要素が見つかりません');
+    }
+}
+
+// 出題確認モーダルを非表示
+function hideActivateModal() {
+    document.getElementById('activateModal').classList.add('hidden');
+    currentOdaiId = null;
+}
+
+// 表示設定を更新
+async function updateDisplaySettings() {
+    const topPosition = parseInt(document.getElementById('top-position').value);
+    const fontSize = parseInt(document.getElementById('font-size').value);
+    const widthPx = parseInt(document.getElementById('width-px').value);
+    
+    if (topPosition < 0 || topPosition > 100) {
+        addLog('❌ 位置は0-100の範囲で入力してください', 'error');
+        return;
+    }
+    if (fontSize < 12 || fontSize > 200) {
+        addLog('❌ フォントサイズは12-200の範囲で入力してください', 'error');
+        return;
+    }
+    if (widthPx < 200 || widthPx > 2000) {
+        addLog('❌ 横幅は200-2000の範囲で入力してください', 'error');
+        return;
+    }
+    
+    addLog(`📍 表示設定を更新中... (位置:${topPosition}%, フォント:${fontSize}px, 横幅:${widthPx}px)`);
+    
+    try {
+        const formData = new FormData();
+        formData.append('top_position', topPosition);
+        formData.append('font_size', fontSize);
+        formData.append('width_px', widthPx);
+        
+        console.log('送信するデータ:', { topPosition, fontSize, widthPx });
+        
+        const response = await fetch('/api/display/position', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        console.log('APIレスポンス:', result);
+        
+        if (response.ok) {
+            addLog(`✅ 表示設定を更新しました`, 'success');
+            // display画面に通知
+            if (window.opener) {
+                window.opener.postMessage({type: 'position_updated'}, '*');
+            }
+        } else {
+            addLog(`❌ 表示設定エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('表示設定エラー:', error);
+        addLog(`❌ 表示設定エラー: ${error.message}`, 'error');
+    }
+}
+
+// 表示設定をリセット
+async function resetDisplaySettings() {
+    document.getElementById('top-position').value = 50;
+    document.getElementById('font-size').value = 48;
+    document.getElementById('width-px').value = 800;
+    await updateDisplaySettings();
+}
+
+// 単語表示設定を更新
+async function updateWordDisplaySettings() {
+    const topPosition = parseInt(document.getElementById('word-top-position').value);
+    
+    if (topPosition < 0 || topPosition > 100) {
+        addLog('❌ 位置は0-100の範囲で入力してください', 'error');
+        return;
+    }
+    
+    addLog(`🫧 単語表示設定を更新中... (位置:${topPosition}%)`);
+    
+    try {
+        const formData = new FormData();
+        formData.append('word_top_position', topPosition);
+        
+        const response = await fetch('/api/display/word-settings', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 単語表示設定を更新しました: 位置${topPosition}%`, 'success');
+            
+            // 新規タブで表示画面を開いている場合は更新通知
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({type: 'word_position_updated'}, '*');
+            }
+        } else {
+            addLog(`❌ 単語表示設定エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('単語表示設定エラー:', error);
+        addLog(`❌ 単語表示設定エラー: ${error.message}`, 'error');
+    }
+}
+
+// 表示設定を読み込み
+async function loadPositionSettings() {
+    try {
+        const response = await fetch('/api/display/position');
+        if (response.ok) {
+            const result = await response.json();
+            document.getElementById('top-position').value = result.top_position || 50;
+            document.getElementById('font-size').value = result.font_size || 48;
+            document.getElementById('width-px').value = result.width_px || 800;
+        }
+        
+        // 単語表示設定も読み込み
+        const wordResponse = await fetch('/api/display/word-settings');
+        if (wordResponse.ok) {
+            const wordResult = await wordResponse.json();
+            document.getElementById('word-top-position').value = wordResult.word_top_position || 20;
+        }
+    } catch (error) {
+        console.error('表示設定読み込みエラー:', error);
+    }
+}
+
+// 生成結果出題モーダルを表示
+function showGenerateActivateModal(odaiText) {
+    console.log('showGenerateActivateModal called with:', odaiText);
+    
+    currentGenerateOdaiText = odaiText;
+    const modalText = document.getElementById('generateOdaiText');
+    const modal = document.getElementById('generateActivateModal');
+    
+    if (modalText) {
+        modalText.textContent = odaiText;
+    } else {
+        console.error('generateOdaiText要素が見つかりません');
+    }
+    
+    if (modal) {
+        modal.classList.remove('hidden');
+        console.log('生成結果出題モーダルを表示しました');
+    } else {
+        console.error('generateActivateModal要素が見つかりません');
+    }
+}
+
+// 生成結果出題モーダルを非表示
+function hideGenerateActivateModal() {
+    document.getElementById('generateActivateModal').classList.add('hidden');
+    currentGenerateOdaiText = null;
+}
+
+// 生成結果を確定お題に追加して出題
+async function activateGenerateOdai() {
+    console.log('activateGenerateOdai関数が呼び出されました');
+    console.log('currentGenerateOdaiText:', currentGenerateOdaiText);
+    
+    if (!currentGenerateOdaiText) {
+        console.log('currentGenerateOdaiTextがnullです');
+        addLog('❌ お題テキストが設定されていません', 'error');
+        return;
+    }
+    
+    addLog(`🎯 生成結果「${currentGenerateOdaiText}」を確定お題に追加して出題中...`);
+    
+    try {
+        // まず確定お題に追加
+        console.log('確定お題に追加中...');
+        const formData = new URLSearchParams();
+        formData.append('odai_text', currentGenerateOdaiText);
+        formData.append('source', 'generated');
+        
+        const addResponse = await fetch('/api/confirmed-odais', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData
+        });
+        
+        const addResult = await addResponse.json();
+        console.log('確定お題追加レスポンス:', addResult);
+        
+        if (addResponse.ok) {
+            const odaiId = addResult.odai.id;
+            addLog(`✅ 確定お題に追加しました (ID: ${odaiId})`);
+            
+            // 次に出題中に設定
+            console.log('出題中に設定中...');
+            const activateResponse = await fetch(`/api/confirmed-odais/${odaiId}/activate`, {
+                method: 'POST'
+            });
+            
+            const activateResult = await activateResponse.json();
+            console.log('出題設定レスポンス:', activateResult);
+            
+            if (activateResponse.ok) {
+                addLog(`🎉 生成結果を出題しました！`, 'success');
+                hideGenerateActivateModal();
+                
+                // 確定お題一覧を更新
+                loadConfirmedOdais();
+                
+                // display画面に通知
+                if (window.opener) {
+                    window.opener.postMessage({type: 'odai_updated'}, '*');
+                }
+            } else {
+                addLog(`❌ 出題設定エラー: ${activateResult.detail}`, 'error');
+            }
+        } else {
+            addLog(`❌ 確定お題追加エラー: ${addResult.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('生成結果出題エラー:', error);
+        addLog(`❌ 生成結果出題エラー: ${error.message}`, 'error');
+    }
+}
+
+// お題を出題中に設定
+async function activateOdai() {
+    console.log('activateOdai関数が呼び出されました');
+    console.log('currentOdaiId:', currentOdaiId);
+    
+    if (!currentOdaiId) {
+        console.log('currentOdaiIdがnullです');
+        addLog('❌ お題IDが設定されていません', 'error');
+        return;
+    }
+    
+    addLog(`🎯 お題ID「${currentOdaiId}」を出題中に設定中...`);
+    
+    try {
+        console.log('APIリクエストを送信中...');
+        const response = await fetch(`/api/confirmed-odais/${currentOdaiId}/activate`, {
+            method: 'POST'
+        });
+        
+        console.log('レスポンス受信:', response.status);
+        const result = await response.json();
+        console.log('レスポンス内容:', result);
+        
+        if (response.ok) {
+            addLog(`✅ お題を出題中に設定しました: ${result.active_odai?.odai_text}`, 'success');
+            hideActivateModal();
+            loadConfirmedOdais(); // 確定お題一覧を更新
+            
+            // 表示画面に通知（表示画面が開いている場合）
+            if (window.opener && !window.opener.closed) {
+                window.opener.postMessage({type: 'odai_updated'}, '*');
+            }
+        } else {
+            addLog(`❌ エラー: ${result.detail || '不明なエラー'}`, 'error');
+        }
+    } catch (error) {
+        console.error('エラー詳細:', error);
+        addLog(`❌ 通信エラー: ${error.message}`, 'error');
+    }
+}
+
+// ページ読み込み時に実行
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadDisplayWords(); // 単語リスト読み込み
+    loadConfirmedOdais(); // 確定お題一覧読み込み
+    loadPositionSettings(); // 位置設定読み込み
+    addLog('🚀 管理画面を初期化しました');
+    
+    // モーダルのイベントリスナーを設定
+    const confirmButton = document.getElementById('confirmActivate');
+    const cancelButton = document.getElementById('cancelActivate');
+    const generateConfirmButton = document.getElementById('confirmGenerateActivate');
+    const generateCancelButton = document.getElementById('cancelGenerateActivate');
+    
+    console.log('confirmButton:', confirmButton);
+    console.log('cancelButton:', cancelButton);
+    console.log('generateConfirmButton:', generateConfirmButton);
+    console.log('generateCancelButton:', generateCancelButton);
+    
+    if (confirmButton) {
+        confirmButton.addEventListener('click', function() {
+            console.log('OKボタンがクリックされました');
+            activateOdai();
+        });
+    } else {
+        console.error('confirmActivateボタンが見つかりません');
+    }
+    
+    if (cancelButton) {
+        cancelButton.addEventListener('click', function() {
+            console.log('キャンセルボタンがクリックされました');
+            hideActivateModal();
+        });
+    } else {
+        console.error('cancelActivateボタンが見つかりません');
+    }
+    
+    if (generateConfirmButton) {
+        generateConfirmButton.addEventListener('click', function() {
+            console.log('生成結果出題OKボタンがクリックされました');
+            activateGenerateOdai();
+        });
+    } else {
+        console.error('confirmGenerateActivateボタンが見つかりません');
+    }
+    
+    if (generateCancelButton) {
+        generateCancelButton.addEventListener('click', function() {
+            console.log('生成結果出題キャンセルボタンがクリックされました');
+            hideGenerateActivateModal();
+        });
+    } else {
+        console.error('cancelGenerateActivateボタンが見つかりません');
+    }
+    
+    // モーダル外をクリックしたら閉じる
+    document.getElementById('activateModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideActivateModal();
+        }
+    });
+    
+    document.getElementById('generateActivateModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideGenerateActivateModal();
+        }
+    });
+    
+    // 単語全削除モーダルのイベントリスナーを設定
+    const showDeleteAllWordsButton = document.getElementById('showDeleteAllWordsButton');
+    const confirmDeleteAllWordsButton = document.getElementById('confirmDeleteAllWords');
+    const cancelDeleteAllWordsButton = document.getElementById('cancelDeleteAllWords');
+    const deleteAllWordsModal = document.getElementById('deleteAllWordsModal');
+    
+    console.log('showDeleteAllWordsButton:', showDeleteAllWordsButton);
+    console.log('confirmDeleteAllWordsButton:', confirmDeleteAllWordsButton);
+    console.log('cancelDeleteAllWordsButton:', cancelDeleteAllWordsButton);
+    console.log('deleteAllWordsModal:', deleteAllWordsModal);
+    
+    if (showDeleteAllWordsButton) {
+        showDeleteAllWordsButton.addEventListener('click', function() {
+            console.log('全削除ボタン（show）がクリックされました');
+            showDeleteAllWordsModal();
+        });
+    } else {
+        console.error('showDeleteAllWordsButtonボタンが見つかりません');
+    }
+    
+    if (confirmDeleteAllWordsButton) {
+        confirmDeleteAllWordsButton.addEventListener('click', function() {
+            console.log('全削除ボタン（confirm）がクリックされました');
+            confirmDeleteAllWords();
+        });
+    } else {
+        console.error('confirmDeleteAllWordsボタンが見つかりません');
+    }
+    
+    if (cancelDeleteAllWordsButton) {
+        cancelDeleteAllWordsButton.addEventListener('click', function() {
+            console.log('全削除キャンセルボタンがクリックされました');
+            hideDeleteAllWordsModal();
+        });
+    } else {
+        console.error('cancelDeleteAllWordsボタンが見つかりません');
+    }
+    
+    // モーダル外をクリックしたら閉じる
+    if (deleteAllWordsModal) {
+        deleteAllWordsModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                console.log('モーダル外をクリック');
+                hideDeleteAllWordsModal();
+            }
+        });
+    } else {
+        console.error('deleteAllWordsModalが見つかりません');
+    }
+});
+
+// 第三勢力の関数群
+
+// 生成結果表示関数
+function displayGeneratedOdais(generatedOdais, method) {
+    if (!generatedOdais || generatedOdais.length === 0) {
+        addLog('❌ 生成されたお題がありません', 'error');
+        return;
+    }
+    
+    const area = document.getElementById("generatedOdaiArea");
+    const methodArea = document.getElementById("generationMethod");
+    
+    // 生成結果を表示
+    area.innerHTML = generatedOdais.map(odai => `
+        <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50">
+            <div class="flex-1">
+                <span class="text-sm font-medium">${odai.text}</span>
+                <div class="text-xs text-gray-500 mt-1">
+                    方法: ${odai.method || 'unknown'} | 
+                    品質スコア: ${(odai.quality_score || 0).toFixed(2)}
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="addToConfirmedOdais('${odai.text.replace(/'/g, "\\'")}')" class="px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors">
+                    ➕ 追加
+                </button>
+                <button onclick="showGenerateActivateModal('${odai.text.replace(/'/g, "\\'")}')" class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors">
+                    出題
+                </button>
+                <button onclick="rateOdai('${odai.text.replace(/'/g, "\\'")}', 5, '${odai.method || 'unknown'}')" class="px-3 py-1 text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded transition-colors">
+                    ⭐ 高評価
+                </button>
+                <button onclick="rateOdai('${odai.text.replace(/'/g, "\\'")}', 1, '${odai.method || 'unknown'}')" class="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors">
+                    👎 低評価
+                </button>
+            </div>
+        </div>
+    `).join("");
+    
+    methodArea.textContent = `⚡ ${method}で生成 (${generatedOdais.length}個)`;
+    document.getElementById("saveOdaiButton").classList.remove("hidden");
+}
+
+// 第三勢力用：追加ボタンなしでお題を表示
+function displayGeneratedOdaisWithoutAddButton(generatedOdais, method) {
+    if (!generatedOdais || generatedOdais.length === 0) {
+        addLog('❌ 生成されたお題がありません', 'error');
+        return;
+    }
+    
+    const area = document.getElementById("generatedOdaiArea");
+    const methodArea = document.getElementById("generationMethod");
+    
+    // 生成結果を表示（追加ボタンなし）
+    area.innerHTML = generatedOdais.map(odai => `
+        <div class="flex justify-between items-center py-2 px-3 border-b border-gray-200 hover:bg-gray-50">
+            <div class="flex-1">
+                <span class="text-sm font-medium">${odai.text}</span>
+                <div class="text-xs text-gray-500 mt-1">
+                    方法: ${odai.method || 'unknown'} | 
+                    品質スコア: ${(odai.quality_score || 0).toFixed(2)}
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="showGenerateActivateModal('${odai.text.replace(/'/g, "\\'")}')" class="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded transition-colors">
+                    出題
+                </button>
+                <button onclick="rateOdai('${odai.text.replace(/'/g, "\\'")}', 5, '${odai.method || 'unknown'}')" class="px-3 py-1 text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded transition-colors">
+                    ⭐ 高評価
+                </button>
+                <button onclick="rateOdai('${odai.text.replace(/'/g, "\\'")}', 1, '${odai.method || 'unknown'}')" class="px-3 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded transition-colors">
+                    👎 低評価
+                </button>
+            </div>
+        </div>
+    `).join("");
+    
+    methodArea.textContent = `⚡ ${method}で生成 (${generatedOdais.length}個)`;
+    document.getElementById("saveOdaiButton").classList.remove("hidden");
+}
+
+// 第三勢力の学習
+async function trainThirdForceModel() {
+    const fileInput = document.getElementById('odaiFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        addLog('❌ ファイルを選択してください', 'error');
+        return;
+    }
+    
+    addLog('⚡ 第三勢力の学習を開始...');
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/third-force/learn', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第三勢力学習完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 動詞パターン${result.stats.verb_patterns}個, 構造パターン${result.stats.structure_patterns}個, テンプレート${result.stats.odai_templates}個`);
+        } else {
+            addLog(`❌ 第三勢力学習エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第三勢力学習エラー:', error);
+        addLog(`❌ 第三勢力学習エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力でお題を生成
+async function generateOdaiThirdForce() {
+    const count = parseInt(document.getElementById('odaiCount').value) || 10;
+    const useWords = document.getElementById('useWords').checked;
+    
+    addLog(`⚡ 第三勢力でお題を生成中... (数: ${count}, 単語使用: ${useWords ? 'ON' : 'OFF'})`);
+    
+    try {
+        const formData = new FormData();
+        formData.append('count', count);
+        formData.append('use_words', useWords);
+        
+        const response = await fetch('/api/third-force/generate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            const message = result.message || '第三勢力でお題を生成しました';
+            addLog(`✅ 第三勢力生成完了: ${message}`, 'success');
+            
+            // 生成結果を表示
+            if (result.generated_odais && result.generated_odais.length > 0) {
+                addLog(`📝 生成完了: ${result.generated_odais.length}個のお題を生成しました`, 'success');
+                displayGeneratedOdais(result.generated_odais, '第三勢力');
+            } else {
+                addLog('❌ 生成されたお題がありません', 'error');
+            }
+            
+            // 統計情報を表示
+            if (result.stats) {
+                addLog(`📊 生成統計: 学習データ${result.stats.learning_stats.verb_patterns}個の動詞パターンから生成`);
+            }
+        } else {
+            addLog(`❌ 第三勢力生成エラー: ${result.error || result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第三勢力生成エラー:', error);
+        addLog(`❌ 第三勢力生成エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力の統計を取得
+async function getThirdForceStats() {
+    addLog('⚡ 第三勢力の統計を取得中...');
+    
+    try {
+        const response = await fetch('/api/third-force/stats');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const stats = result.learning_stats;
+            addLog(`📊 第三勢力統計:`, 'info');
+            addLog(`  - 動詞パターン: ${stats.verb_patterns}個`, 'info');
+            addLog(`  - 構造パターン: ${stats.structure_patterns}個`, 'info');
+            addLog(`  - 活用パターン: ${stats.conjugation_patterns}個`, 'info');
+            addLog(`  - お題テンプレート: ${stats.odai_templates}個`, 'info');
+            addLog(`  - 大喜利特有パターン: ${Object.values(stats.odai_specific_patterns).reduce((a, b) => a + b, 0)}個`, 'info');
+        } else {
+            addLog(`❌ 第三勢力統計取得エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第三勢力統計取得エラー:', error);
+        addLog(`❌ 第三勢力統計取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力をリセット
+async function resetThirdForceModel() {
+    if (!confirm('第三勢力の学習データをリセットしますか？この操作は元に戻せません。')) {
+        return;
+    }
+    
+    addLog('⚡ 第三勢力をリセット中...');
+    
+    try {
+        const response = await fetch('/api/third-force/reset', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第三勢力リセット完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ 第三勢力リセットエラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第三勢力リセットエラー:', error);
+        addLog(`❌ 第三勢力リセットエラー: ${error.message}`, 'error');
+    }
+}
+
+// お題を評価
+async function rateOdai(odaiText, rating, source) {
+    try {
+        const formData = new FormData();
+        formData.append("odai_text", odaiText);
+        formData.append("rating", rating);
+        formData.append("source", source);
+        
+        const response = await fetch("/api/odai/rate", {
+            method: "POST",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            const message = result.auto_learned 
+                ? `⭐ お題を評価しました: ${rating}点 - "${odaiText.substring(0, 30)}..." - 自動学習も実行しました`
+                : `⭐ お題を評価しました: ${rating}点 - "${odaiText.substring(0, 30)}..."`;
+            addLog(message, 'success');
+        } else {
+            addLog(`❌ 評価エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 評価エラー: ${error.message}`, 'error');
+    }
+}
+
+// 高評価から学習
+async function learnFromHighRatings() {
+    addLog("⭐ 高評価のお題から学習中...");
+    
+    try {
+        const response = await fetch("/api/third-force/learn-from-ratings", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 高評価学習完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 動詞パターン${result.stats.verb_patterns}個, 構造パターン${result.stats.structure_patterns}個, テンプレート${result.stats.templates}個`);
+        } else {
+            addLog(`❌ 高評価学習エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 高評価学習エラー: ${error.message}`, 'error');
+    }
+}
+
+// データベースから高品質学習
+async function learnFromDatabase() {
+    addLog("🎯 データベースから高品質学習中...");
+    
+    try {
+        const response = await fetch("/api/third-force/learn-from-database", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: "limit=50&min_rating=3.0"
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ データベース学習完了: ${result.message}`, 'success');
+            addLog(`📊 候補数: ${result.total_candidates}, 学習数: ${result.learned_count}`, 'info');
+            addLog(`📊 学習統計: 動詞パターン${result.stats.verb_patterns}個, 構造パターン${result.stats.structure_patterns}個, テンプレート${result.stats.templates}個`);
+        } else {
+            addLog(`❌ データベース学習エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ データベース学習エラー: ${error.message}`, 'error');
+    }
+}
+
+// データベースマイグレーション
+async function migrateDatabase() {
+    addLog("🔧 データベースマイグレーション中...");
+    
+    try {
+        const response = await fetch("/api/admin/migrate-database", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ マイグレーション完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ マイグレーションエラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ マイグレーションエラー: ${error.message}`, 'error');
+    }
+}
+
+// 評価統計を取得
+async function getRatingStats() {
+    addLog("📊 評価統計を取得中...");
+    
+    try {
+        const response = await fetch("/api/odai/ratings/stats");
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`📊 評価統計: 総評価数${result.total_ratings}件, 平均評価${result.average_rating}点`, 'info');
+            addLog(`📊 第三勢力平均: ${result.third_force_average}点`, 'info');
+            addLog(`📊 評価分布: 1点${result.rating_distribution[1]}件, 2点${result.rating_distribution[2]}件, 3点${result.rating_distribution[3]}件, 4点${result.rating_distribution[4]}件, 5点${result.rating_distribution[5]}件`, 'info');
+        } else {
+            addLog(`❌ 評価統計取得エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ 評価統計取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力モデル保存
+async function saveThirdForceModel() {
+    const modelName = document.getElementById('modelNameInput').value.trim();
+    const description = document.getElementById('modelDescriptionInput').value.trim();
+    
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+    
+    addLog(`💾 第三勢力モデル '${modelName}' を保存中...`);
+    
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+        formData.append("description", description);
+        
+        const response = await fetch("/api/third-force/save-model", {
+            method: "POST",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ モデル保存完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 動詞パターン${result.learning_stats.verb_patterns}個, 構造パターン${result.learning_stats.structure_patterns}個, テンプレート${result.learning_stats.odai_templates}個`);
+            addLog(`💾 ファイルサイズ: ${Math.round(result.file_size / 1024)}KB`);
+            
+            // 入力フィールドをクリア
+            document.getElementById('modelNameInput').value = '';
+            document.getElementById('modelDescriptionInput').value = '';
+        } else {
+            addLog(`❌ モデル保存エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル保存エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力モデル読み込み
+async function loadThirdForceModel() {
+    const modelName = document.getElementById('modelNameInput').value.trim();
+    
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+    
+    addLog(`📂 第三勢力モデル '${modelName}' を読み込み中...`);
+    
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+        
+        const response = await fetch("/api/third-force/load-model", {
+            method: "POST",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ モデル読み込み完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 動詞パターン${result.learning_stats.verb_patterns}個, 構造パターン${result.learning_stats.structure_patterns}個, テンプレート${result.learning_stats.odai_templates}個`);
+            addLog(`📅 作成日時: ${result.created_at}`);
+            if (result.description) {
+                addLog(`📝 説明: ${result.description}`);
+            }
+        } else {
+            addLog(`❌ モデル読み込みエラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル読み込みエラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力モデル一覧表示
+async function listThirdForceModels() {
+    addLog("📋 第三勢力モデル一覧を取得中...");
+    
+    try {
+        const response = await fetch("/api/third-force/models");
+        const result = await response.json();
+        
+        if (response.ok) {
+            const modelList = document.getElementById('modelList');
+            const modelListContent = document.getElementById('modelListContent');
+            
+            if (result.count === 0) {
+                modelListContent.innerHTML = '<p class="text-gray-500">保存されたモデルがありません</p>';
+            } else {
+                modelListContent.innerHTML = result.models.map(model => `
+                    <div class="border border-gray-200 rounded-lg p-3 mb-2 bg-white">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <h5 class="font-medium text-gray-800">${model.model_name}</h5>
+                                <p class="text-sm text-gray-600">${model.description || '説明なし'}</p>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    作成日: ${model.created_at} | サイズ: ${Math.round(model.file_size / 1024)}KB
+                                </div>
+                                <div class="text-xs text-gray-500">
+                                    学習統計: 動詞${model.learning_stats.verb_patterns}個, 構造${model.learning_stats.structure_patterns}個, テンプレート${model.learning_stats.templates}個
+                                </div>
+                            </div>
+                            <div class="flex gap-1 ml-2">
+                                <button onclick="loadModelByName('${model.model_name}')" class="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded">
+                                    読み込み
+                                </button>
+                                <button onclick="deleteModelByName('${model.model_name}')" class="px-2 py-1 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded">
+                                    削除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            modelList.classList.remove('hidden');
+            addLog(`✅ モデル一覧を表示しました (${result.count}個)`, 'success');
+        } else {
+            addLog(`❌ モデル一覧取得エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル一覧取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// モデル名で読み込み
+async function loadModelByName(modelName) {
+    document.getElementById('modelNameInput').value = modelName;
+    await loadThirdForceModel();
+}
+
+// モデル名で削除
+async function deleteModelByName(modelName) {
+    if (!confirm(`モデル '${modelName}' を削除しますか？この操作は元に戻せません。`)) {
+        return;
+    }
+    
+    addLog(`🗑️ 第三勢力モデル '${modelName}' を削除中...`);
+    
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+        
+        const response = await fetch("/api/third-force/delete-model", {
+            method: "DELETE",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ モデル削除完了: ${result.message}`, 'success');
+            // 一覧を更新
+            await listThirdForceModels();
+        } else {
+            addLog(`❌ モデル削除エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル削除エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第三勢力モデル削除
+async function deleteThirdForceModel() {
+    const modelName = document.getElementById('modelNameInput').value.trim();
+    
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+    
+    await deleteModelByName(modelName);
+}
+
+// ========== 第四勢力の関数群 ==========
+
+// 第四勢力の学習
+async function trainFourthForceModel() {
+    const fileInput = document.getElementById('odaiFile');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        addLog('❌ ファイルを選択してください', 'error');
+        return;
+    }
+    
+    addLog('🎨 第四勢力の学習を開始...');
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/fourth-force/learn', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第四勢力学習完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 学習単語${result.stats.learned_words}個, テンプレート${result.stats.templates}個`);
+        } else {
+            addLog(`❌ 第四勢力学習エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第四勢力学習エラー:', error);
+        addLog(`❌ 第四勢力学習エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力でお題を生成
+async function generateOdaiFourthForce() {
+    const count = parseInt(document.getElementById('odaiCount').value) || 10;
+    const useWords = document.getElementById('useWords').checked;
+    
+    addLog(`🎨 第四勢力でお題を生成中... (数: ${count}, 単語使用: ${useWords ? 'ON' : 'OFF'})`);
+    
+    try {
+        const formData = new FormData();
+        formData.append('count', count);
+        formData.append('use_words', useWords);
+        
+        const response = await fetch('/api/fourth-force/generate', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            const message = result.message || '第四勢力でお題を生成しました';
+            addLog(`✅ 第四勢力生成完了: ${message}`, 'success');
+            
+            // 生成結果を表示
+            if (result.generated_odais && result.generated_odais.length > 0) {
+                addLog(`📝 生成完了: ${result.generated_odais.length}個のお題を生成しました`, 'success');
+                displayGeneratedOdais(result.generated_odais, '第四勢力');
+            } else {
+                addLog('❌ 生成されたお題がありません', 'error');
+            }
+            
+            // 統計情報を表示
+            if (result.stats) {
+                addLog(`📊 生成統計: 学習データ${result.stats.learning_stats.learned_words}個の単語パターンから生成`);
+            }
+        } else {
+            addLog(`❌ 第四勢力生成エラー: ${result.error || result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第四勢力生成エラー:', error);
+        addLog(`❌ 第四勢力生成エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力の統計を取得
+async function getFourthForceStats() {
+    addLog('🎨 第四勢力の統計を取得中...');
+    
+    try {
+        const response = await fetch('/api/fourth-force/stats');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const stats = result.learning_stats;
+            addLog(`📊 第四勢力統計:`, 'info');
+            addLog(`  - 学習単語: ${stats.learned_words}個`, 'info');
+            addLog(`  - テンプレート: ${stats.templates}個`, 'info');
+            addLog(`  - 単語情報: ${stats.word_info_count}個`, 'info');
+        } else {
+            addLog(`❌ 第四勢力統計取得エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第四勢力統計取得エラー:', error);
+        addLog(`❌ 第四勢力統計取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力をリセット
+async function resetFourthForceModel() {
+    if (!confirm('第四勢力の学習データをリセットしますか？この操作は元に戻せません。')) {
+        return;
+    }
+    
+    addLog('🎨 第四勢力をリセット中...');
+    
+    try {
+        const response = await fetch('/api/fourth-force/reset', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第四勢力リセット完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ 第四勢力リセットエラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第四勢力リセットエラー:', error);
+        addLog(`❌ 第四勢力リセットエラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力モデル保存
+async function saveFourthForceModel() {
+    const modelName = document.getElementById('fourthModelNameInput').value.trim();
+    const description = document.getElementById('fourthModelDescriptionInput').value.trim();
+    
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+    
+    addLog(`💾 第四勢力モデル '${modelName}' を保存中...`);
+    
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+        formData.append("description", description);
+        
+        const response = await fetch("/api/fourth-force/save-model", {
+            method: "POST",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第四勢力モデル保存完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 学習単語${result.learning_stats.learned_words}個, テンプレート${result.learning_stats.templates}個`);
+            addLog(`💾 ファイルサイズ: ${Math.round(result.file_size / 1024)}KB`);
+            
+            // 入力フィールドをクリア
+            document.getElementById('fourthModelNameInput').value = '';
+            document.getElementById('fourthModelDescriptionInput').value = '';
+        } else {
+            addLog(`❌ モデル保存エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル保存エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力モデル読み込み
+async function loadFourthForceModel() {
+    const modelName = document.getElementById('fourthModelNameInput').value.trim();
+    
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+    
+    addLog(`📂 第四勢力モデル '${modelName}' を読み込み中...`);
+    
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+        
+        const response = await fetch("/api/fourth-force/load-model", {
+            method: "POST",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第四勢力モデル読み込み完了: ${result.message}`, 'success');
+            addLog(`📊 モデル情報: ${result.model_name} - ${result.description || '説明なし'}`);
+            addLog(`📊 学習統計: 学習単語${result.learning_stats.learned_words}個, テンプレート${result.learning_stats.templates}個`);
+            addLog(`📅 作成日時: ${result.created_at}`);
+        } else {
+            addLog(`❌ モデル読み込みエラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル読み込みエラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力モデル一覧表示
+async function listFourthForceModels() {
+    addLog('📋 第四勢力モデル一覧を取得中...');
+    
+    try {
+        const response = await fetch('/api/fourth-force/models');
+        const result = await response.json();
+        
+        if (response.ok) {
+            const modelList = document.getElementById('fourthModelList');
+            const modelListContent = document.getElementById('fourthModelListContent');
+            
+            if (result.models && result.models.length > 0) {
+                let html = '<div class="space-y-2">';
+                result.models.forEach(model => {
+                    const createdDate = model.created_at ? new Date(model.created_at).toLocaleString('ja-JP') : '不明';
+                    html += `
+                        <div class="p-3 bg-white rounded border border-gray-200">
+                            <div class="font-medium text-gray-800">${model.model_name}</div>
+                            <div class="text-sm text-gray-600 mt-1">${model.description || '説明なし'}</div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                📅 ${createdDate} | 💾 ${Math.round(model.file_size / 1024)}KB
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                学習単語: ${model.learning_stats.learned_words}個, テンプレート: ${model.learning_stats.templates}個
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                modelListContent.innerHTML = html;
+                modelList.classList.remove('hidden');
+                
+                addLog(`✅ 第四勢力モデル一覧: ${result.count}個のモデルが見つかりました`, 'success');
+            } else {
+                addLog('❌ 保存された第四勢力モデルがありません', 'error');
+            }
+        } else {
+            addLog(`❌ モデル一覧取得エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル一覧取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第四勢力モデル削除
+async function deleteFourthForceModel() {
+    const modelName = document.getElementById('fourthModelNameInput').value.trim();
+    
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+    
+    if (!confirm(`第四勢力モデル '${modelName}' を削除しますか？この操作は元に戻せません。`)) {
+        return;
+    }
+    
+    addLog(`🗑️ 第四勢力モデル '${modelName}' を削除中...`);
+    
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+        
+        const response = await fetch("/api/fourth-force/delete-model", {
+            method: "DELETE",
+            body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            addLog(`✅ 第四勢力モデル削除完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ モデル削除エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル削除エラー: ${error.message}`, 'error');
+    }
+}
+
+// ========== 第五の力（n-gram）の関数群 ==========
+
+// Temperatureスライダーの値更新
+document.getElementById('ngramTemperature')?.addEventListener('input', function(e) {
+    document.getElementById('temperatureValue').textContent = e.target.value;
+});
+
+// 第五の力の学習
+async function trainFifthForceModel() {
+    const fileInput = document.getElementById('odaiFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        addLog('❌ ファイルを選択してください', 'error');
+        return;
+    }
+
+    addLog('🌟 第五の力（n-gram）の学習を開始...');
+
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/api/fifth-force/learn', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第五の力学習完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 語彙数${result.stats.vocabulary_size}語, n-gramパターン${result.stats.total_ngrams}個, 学習お題${result.stats.learned_odais}個`);
+        } else {
+            addLog(`❌ 第五の力学習エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第五の力学習エラー:', error);
+        addLog(`❌ 第五の力学習エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力でお題を生成
+async function generateOdaiFifthForce() {
+    const count = parseInt(document.getElementById('odaiCount').value) || 10;
+    const useWords = document.getElementById('useWords').checked;
+    const temperature = parseFloat(document.getElementById('ngramTemperature').value) || 0.8;
+
+    addLog(`🌟 第五の力（n-gram）でお題を生成中... (数: ${count}, 単語使用: ${useWords ? 'ON' : 'OFF'}, temp: ${temperature})`);
+
+    try {
+        const formData = new FormData();
+        formData.append('count', count);
+        formData.append('use_words', useWords);
+        formData.append('temperature', temperature);
+
+        const response = await fetch('/api/fifth-force/generate', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            const message = result.message || '第五の力でお題を生成しました';
+            addLog(`✅ 第五の力生成完了: ${message}`, 'success');
+
+            // 生成結果を表示
+            if (result.generated_odais && result.generated_odais.length > 0) {
+                addLog(`📝 生成完了: ${result.generated_odais.length}個のお題を生成しました`, 'success');
+                displayGeneratedOdais(result.generated_odais, '第五の力（n-gram）');
+            } else {
+                addLog('❌ 生成されたお題がありません', 'error');
+            }
+
+            // エラーメッセージがある場合は表示
+            if (result.error) {
+                addLog(`⚠️ ${result.error}`, 'error');
+            }
+        } else {
+            addLog(`❌ 第五の力生成エラー: ${result.error || result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第五の力生成エラー:', error);
+        addLog(`❌ 第五の力生成エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力の統計を取得
+async function getFifthForceStats() {
+    addLog('🌟 第五の力（n-gram）の統計を取得中...');
+
+    try {
+        const response = await fetch('/api/fifth-force/stats');
+        const result = await response.json();
+
+        if (response.ok) {
+            const stats = result.learning_stats;
+            addLog(`📊 第五の力統計:`, 'info');
+            addLog(`  - n-gram次数: ${stats.n}`, 'info');
+            addLog(`  - 語彙数: ${stats.vocabulary_size}語`, 'info');
+            addLog(`  - n-gramパターン: ${stats.total_ngrams}個`, 'info');
+            addLog(`  - 学習お題数: ${stats.learned_odais}個`, 'info');
+        } else {
+            addLog(`❌ 第五の力統計取得エラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第五の力統計取得エラー:', error);
+        addLog(`❌ 第五の力統計取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力をリセット
+async function resetFifthForceModel() {
+    if (!confirm('第五の力（n-gram）の学習データをリセットしますか？この操作は元に戻せません。')) {
+        return;
+    }
+
+    addLog('🌟 第五の力をリセット中...');
+
+    try {
+        const response = await fetch('/api/fifth-force/reset', {
+            method: 'POST'
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第五の力リセット完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ 第五の力リセットエラー: ${result.detail}`, 'error');
+        }
+    } catch (error) {
+        console.error('第五の力リセットエラー:', error);
+        addLog(`❌ 第五の力リセットエラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力モデル保存
+async function saveFifthForceModel() {
+    const modelName = document.getElementById('fifthModelNameInput').value.trim();
+
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+
+    addLog(`💾 第五の力モデル '${modelName}' を保存中...`);
+
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+
+        const response = await fetch("/api/fifth-force/save-model", {
+            method: "POST",
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第五の力モデル保存完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 語彙数${result.learning_stats.vocabulary_size}語, n-gramパターン${result.learning_stats.total_ngrams}個`);
+            addLog(`💾 ファイルサイズ: ${Math.round(result.file_size / 1024)}KB`);
+
+            // 入力フィールドをクリア
+            document.getElementById('fifthModelNameInput').value = '';
+        } else {
+            addLog(`❌ モデル保存エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル保存エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力モデル読み込み
+async function loadFifthForceModel() {
+    const modelName = document.getElementById('fifthModelNameInput').value.trim();
+
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+
+    addLog(`📂 第五の力モデル '${modelName}' を読み込み中...`);
+
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+
+        const response = await fetch("/api/fifth-force/load-model", {
+            method: "POST",
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第五の力モデル読み込み完了: ${result.message}`, 'success');
+            addLog(`📊 学習統計: 語彙数${result.learning_stats.vocabulary_size}語, n-gramパターン${result.learning_stats.total_ngrams}個`);
+        } else {
+            addLog(`❌ モデル読み込みエラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル読み込みエラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力モデル一覧表示
+async function listFifthForceModels() {
+    addLog('📋 第五の力モデル一覧を取得中...');
+
+    try {
+        const response = await fetch('/api/fifth-force/models');
+        const result = await response.json();
+
+        if (response.ok && result.models && result.models.length > 0) {
+            const modelList = document.getElementById('fifthModelList');
+            const modelListContent = document.getElementById('fifthModelListContent');
+
+            let html = '<div class="space-y-2">';
+            result.models.forEach(model => {
+                html += `
+                    <div class="p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="font-medium text-gray-900">${model.model_name}</p>
+                                <p class="text-xs text-gray-500 mt-1">n=${model.n}, 語彙${model.vocabulary_size}語, パターン${model.total_patterns}個</p>
+                                <p class="text-xs text-gray-400">${Math.round(model.file_size / 1024)}KB</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            modelListContent.innerHTML = html;
+            modelList.classList.remove('hidden');
+
+            addLog(`✅ 第五の力モデル一覧: ${result.total_count}個のモデルが見つかりました`, 'success');
+        } else {
+            addLog('❌ 保存された第五の力モデルがありません', 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル一覧取得エラー: ${error.message}`, 'error');
+    }
+}
+
+// 第五の力モデル削除
+async function deleteFifthForceModel() {
+    const modelName = document.getElementById('fifthModelNameInput').value.trim();
+
+    if (!modelName) {
+        addLog('❌ モデル名を入力してください', 'error');
+        return;
+    }
+
+    if (!confirm(`第五の力モデル '${modelName}' を削除しますか？この操作は元に戻せません。`)) {
+        return;
+    }
+
+    addLog(`🗑️ 第五の力モデル '${modelName}' を削除中...`);
+
+    try {
+        const formData = new FormData();
+        formData.append("model_name", modelName);
+
+        const response = await fetch("/api/fifth-force/delete-model", {
+            method: "DELETE",
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            addLog(`✅ 第五の力モデル削除完了: ${result.message}`, 'success');
+        } else {
+            addLog(`❌ モデル削除エラー: ${result.detail || result.message}`, 'error');
+        }
+    } catch (error) {
+        addLog(`❌ モデル削除エラー: ${error.message}`, 'error');
     }
 }
 </script>

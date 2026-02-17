@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Rust for SudachiPy
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
 # Configure MeCab
 ENV MECABRC /etc/mecabrc
 RUN echo "dicdir = /var/lib/mecab/dic/ipadic-utf8" > /etc/mecabrc
@@ -28,7 +32,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir wheel setuptools && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    python -c "import sudachipy; print('SudachiPy installed successfully')" && \
+    python -c "import janome; print('Janome installed successfully')"
 
 # Copy application code
 COPY . .
