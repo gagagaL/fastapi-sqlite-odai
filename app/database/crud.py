@@ -99,6 +99,14 @@ class ConfirmedOdaiCRUD:
         return False
 
     @staticmethod
+    def delete_all(db: Session) -> int:
+        """全確定お題を削除"""
+        deleted_count = db.query(ConfirmedOdai).count()
+        db.query(ConfirmedOdai).delete()
+        db.commit()
+        return deleted_count
+
+    @staticmethod
     def get_count(db: Session) -> int:
         """確定お題の総数を取得"""
         return db.query(ConfirmedOdai).count()

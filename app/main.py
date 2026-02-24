@@ -24,9 +24,8 @@ from .database.models import (
 from .config import get_settings
 from .analysis.fourth_force_context_learner import FourthForceContextLearner
 from .analysis.fourth_force_generator import FourthForceGenerator
-from .analysis.fifth_force_ngram_learner import FifthForceNgramLearner
-from .analysis.fifth_force_ngram_generator import FifthForceNgramGenerator
 from .analysis import ai_force_generator
+from .analysis.pattern_based_generator import pattern_generator
 
 
 # データディレクトリの作成
@@ -128,16 +127,6 @@ FOURTH_FORCE_DATA_PATH = "app/data/fourth_force_learning_data.json"
 # 第四の力の学習データを読み込み
 fourth_force_learner.load_learning_data(FOURTH_FORCE_DATA_PATH)
 
-# 第五の力のインスタンス（n-gram）
-fifth_force_learner = FifthForceNgramLearner(n=3)
-# 注: fifth_force_generatorはDBセッションが必要なため、エンドポイントで作成
-
-# 第五の力の学習データパス
-FIFTH_FORCE_DATA_PATH = "app/data/fifth_force_ngram_learning_data.json"
-
-# 第五の力の学習データを読み込み
-fifth_force_learner.load_learning_data(FIFTH_FORCE_DATA_PATH)
-
 
 @app.on_event("startup")
 async def startup_event():
@@ -160,10 +149,8 @@ async def index(request: Request, db: Session = Depends(get_db)):
     confirmed_odais = ConfirmedOdaiCRUD.get_all(db, skip=0, limit=1000)
 
     stats = {
-        "news_count": 0,  # ニュース記事機能は未実装
         "word_count": len(display_words),
         "topic_count": len(confirmed_odais),
-        "training_count": 0,  # 学習データ数（後で実装）
     }
 
     # 最新のお題を取得
@@ -261,16 +248,6 @@ async def create_display_word(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/display/words/{word_id}")
-async def delete_display_word(word_id: int, db: Session = Depends(get_db)):
-    """表示用単語を削除"""
-    success = DisplayWordCRUD.delete(db, word_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="指定された単語が見つかりません")
-
-    return {"message": "単語を削除しました"}
-
-
 @app.delete("/api/display/words/all")
 async def delete_all_display_words(db: Session = Depends(get_db)):
     """登録済み単語を全削除"""
@@ -279,6 +256,16 @@ async def delete_all_display_words(db: Session = Depends(get_db)):
         return {"message": "すべての単語を削除しました"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/display/words/{word_id}")
+async def delete_display_word(word_id: int, db: Session = Depends(get_db)):
+    """表示用単語を削除"""
+    success = DisplayWordCRUD.delete(db, word_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="指定された単語が見つかりません")
+
+    return {"message": "単語を削除しました"}
 
 
 @app.post("/api/display/sentence")
@@ -290,7 +277,7 @@ async def create_display_words_from_sentence(
         raise HTTPException(status_code=400, detail="文章が空です")
     try:
         tagger = MeCab.Tagger("")
-        node = tagger.parseToNode(sentence)
+        result = tagger.parse(sentence)
 
         target_heads = {"名詞", "動詞", "形容詞", "形容動詞", "形容動詞語幹", "副詞"}
         allow_re = re.compile(
@@ -298,24 +285,23 @@ async def create_display_words_from_sentence(
         )
 
         picked = []
-        while node:
-            surface = (node.surface or "").strip()
-            feat = node.feature or ""
-            parts = feat.split(",")
-            if len(parts) < 2:
-                node = node.next
+        for line in result.strip().split("\n"):
+            if not line or line == "EOS":
+                continue
+            parts = line.split("\t")
+            if len(parts) < 5:
                 continue
 
-            pos = parts[0]
+            surface = parts[0].strip()
+            pos_full = parts[4]
+            pos = pos_full.split("-")[0] if pos_full else ""
+
             if pos not in target_heads:
-                node = node.next
                 continue
             if not surface or not allow_re.match(surface):
-                node = node.next
                 continue
 
             picked.append({"word": surface, "pos": pos})
-            node = node.next
 
         added_count = 0
         for item in picked:
@@ -388,6 +374,16 @@ async def create_confirmed_odai(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"確定お題作成エラー: {str(e)}")
+
+
+@app.delete("/api/confirmed-odais/all")
+async def delete_all_confirmed_odais(db: Session = Depends(get_db)):
+    """確定お題を全削除"""
+    try:
+        deleted_count = ConfirmedOdaiCRUD.delete_all(db)
+        return {"message": f"すべての確定お題を削除しました（{deleted_count}件）"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"確定お題全削除エラー: {str(e)}")
 
 
 @app.delete("/api/confirmed-odais/{odai_id}")
@@ -582,17 +578,6 @@ async def rate_odai(
                         auto_learned = True
                 except Exception as e:
                     print(f"第四の力高評価自動学習エラー: {e}")
-
-        # 第五の力の自動学習
-        if source in ["fifth_force_ngram", "fifth_force_ngram_pos"]:
-            if rating >= 4:
-                try:
-                    learned = fifth_force_learner.learn_from_odai(odai_text)
-                    if learned:
-                        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
-                        auto_learned = True
-                except Exception as e:
-                    print(f"第五の力高評価自動学習エラー: {e}")
 
         return {
             "message": f"お題を評価しました（評価: {rating}）"
@@ -1024,352 +1009,27 @@ async def delete_fourth_force_model(model_name: str = Form(...)):
 
 
 # ============================================
-# 第五の力（n-gram）APIエンドポイント
-# ============================================
-
-
-@app.post("/api/fifth-force/learn")
-async def learn_fifth_force_patterns(file: UploadFile = File(...)):
-    """第五の力（n-gram）の学習"""
-    try:
-        if not file.filename.endswith((".txt", ".json")):
-            raise HTTPException(
-                status_code=400,
-                detail="テキストファイルまたはJSONファイルをアップロードしてください",
-            )
-
-        content = await file.read()
-        text_content = content.decode("utf-8")
-
-        if file.filename.endswith(".txt"):
-            lines = text_content.strip().split("\n")
-            learned_count = 0
-
-            for line in lines:
-                line = line.strip()
-                if line:
-                    learned = fifth_force_learner.learn_from_odai(line)
-                    if learned:
-                        learned_count += 1
-
-            fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
-
-            return {
-                "message": f"第五の力（n-gram）: {learned_count}個のお題から学習しました",
-                "learned_count": learned_count,
-                "stats": fifth_force_learner.get_learning_stats(),
-            }
-
-        elif file.filename.endswith(".json"):
-            try:
-                data = json.loads(text_content)
-                if isinstance(data, list):
-                    learned_count = 0
-                    for item in data:
-                        odai_text = None
-                        if isinstance(item, str):
-                            odai_text = item
-                        elif isinstance(item, dict) and "odai_text" in item:
-                            odai_text = item["odai_text"]
-
-                        if odai_text:
-                            learned = fifth_force_learner.learn_from_odai(odai_text)
-                            if learned:
-                                learned_count += 1
-
-                    fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
-
-                    return {
-                        "message": f"第五の力（n-gram）: {learned_count}個のお題から学習しました",
-                        "learned_count": learned_count,
-                        "stats": fifth_force_learner.get_learning_stats(),
-                    }
-                else:
-                    raise HTTPException(
-                        status_code=400, detail="JSONファイルの形式が正しくありません"
-                    )
-            except json.JSONDecodeError:
-                raise HTTPException(
-                    status_code=400, detail="JSONファイルの解析に失敗しました"
-                )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"第五の力学習エラー: {str(e)}")
-
-
-@app.post("/api/fifth-force/generate")
-async def generate_fifth_force_odai(
-    count: int = Form(10),
-    use_words: bool = Form(True),
-    temperature: float = Form(0.8),
-    db: Session = Depends(get_db),
-):
-    """第五の力（n-gram）でお題を生成（品詞ベース）"""
-    try:
-        # DBセッションを使ってgeneratorを作成
-        fifth_force_generator = FifthForceNgramGenerator(fifth_force_learner, db)
-
-        words_to_use = []
-        if use_words:
-            words = db.query(DisplayWord).all()
-            words_to_use = [word.word for word in words if word.word]
-
-        if not words_to_use:
-            return {
-                "error": "第五の力（n-gram POS）: 使用する単語がありません。まず単語を登録してください。",
-                "generated_odais": [],
-                "stats": fifth_force_generator.get_generation_stats(),
-            }
-
-        generated_odais = fifth_force_generator.generate_from_words(
-            words_to_use, count=count, temperature=temperature
-        )
-
-        if not generated_odais:
-            return {
-                "error": "第五の力（n-gram POS）: お題の生成に失敗しました。学習データが不足している可能性があります。",
-                "generated_odais": [],
-                "stats": fifth_force_generator.get_generation_stats(),
-            }
-
-        return {
-            "message": f"第五の力（n-gram POS）: {len(generated_odais)}個のお題を生成しました",
-            "generated_odais": [
-                {
-                    "text": odai["text"],
-                    "source": odai.get("source", "fifth_force_ngram_pos"),
-                    "method": odai.get("method", "ngram_pos"),
-                    "quality_score": odai.get("quality_score", 0.5),
-                }
-                for odai in generated_odais
-            ],
-            "saved_count": 0,
-            "stats": fifth_force_generator.get_generation_stats(),
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"第五の力生成エラー: {str(e)}")
-
-
-@app.get("/api/fifth-force/stats")
-async def get_fifth_force_stats(db: Session = Depends(get_db)):
-    """第五の力（n-gram）の学習統計を取得"""
-    try:
-        # DBセッションを使ってgeneratorを作成
-        fifth_force_generator = FifthForceNgramGenerator(fifth_force_learner, db)
-
-        return {
-            "learning_stats": fifth_force_learner.get_learning_stats(),
-            "generation_stats": fifth_force_generator.get_generation_stats(),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"第五の力統計取得エラー: {str(e)}")
-
-
-@app.post("/api/fifth-force/reset")
-async def reset_fifth_force_learning():
-    """第五の力（n-gram）の学習データをリセット"""
-    try:
-        fifth_force_learner.reset()
-        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
-
-        return {
-            "message": "第五の力（n-gram）の学習データをリセットしました",
-            "stats": fifth_force_learner.get_learning_stats(),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"第五の力リセットエラー: {str(e)}")
-
-
-@app.post("/api/fifth-force/learn-from-high-ratings")
-async def learn_fifth_force_from_high_ratings(
-    min_rating: int = Form(4), limit: int = Form(50), db: Session = Depends(get_db)
-):
-    """高評価のお題から第五の力（n-gram）を学習"""
-    try:
-        high_rated = OdaiRatingCRUD.get_high_rated_odais(db, min_rating, limit)
-
-        if not high_rated:
-            return {
-                "message": "高評価のお題が見つかりません",
-                "learned_count": 0,
-                "stats": fifth_force_learner.get_learning_stats(),
-            }
-
-        learned_count = 0
-        for rating in high_rated:
-            learned = fifth_force_learner.learn_from_odai(rating.odai_text)
-            if learned:
-                learned_count += 1
-
-        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
-
-        return {
-            "message": f"第五の力（n-gram）: 高評価のお題{learned_count}個から学習しました",
-            "learned_count": learned_count,
-            "stats": fifth_force_learner.get_learning_stats(),
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"第五の力高評価学習エラー: {str(e)}")
-
-
-@app.post("/api/fifth-force/save-model")
-async def save_fifth_force_model(
-    model_name: str = Form(...),
-    description: str = Form(""),
-):
-    """第五の力（n-gram）モデルを保存"""
-    try:
-        if not model_name.strip():
-            raise HTTPException(status_code=400, detail="モデル名が空です")
-
-        sanitized_name = re.sub(r"[^\w\-]", "_", model_name.strip())
-
-        model_dir = "app/data/fifth_force_models"
-        os.makedirs(model_dir, exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        model_file = os.path.join(model_dir, f"{sanitized_name}_{timestamp}.json")
-
-        # 学習データをそのまま保存
-        fifth_force_learner.save_learning_data(model_file)
-
-        file_size = os.path.getsize(model_file)
-
-        return {
-            "message": f"第五の力（n-gram）モデル '{sanitized_name}' を保存しました",
-            "model_name": sanitized_name,
-            "file_path": model_file,
-            "file_size": file_size,
-            "learning_stats": fifth_force_learner.get_learning_stats(),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル保存エラー: {str(e)}")
-
-
-@app.get("/api/fifth-force/models")
-async def list_fifth_force_models():
-    """保存された第五の力（n-gram）モデル一覧を取得"""
-    try:
-        model_dir = "app/data/fifth_force_models"
-        os.makedirs(model_dir, exist_ok=True)
-
-        models = []
-        for filename in os.listdir(model_dir):
-            if filename.endswith(".json"):
-                filepath = os.path.join(model_dir, filename)
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        model_data = json.load(f)
-
-                    file_size = os.path.getsize(filepath)
-
-                    # ファイル名から情報を抽出
-                    parts = filename.replace(".json", "").split("_")
-                    model_name = "_".join(parts[:-2]) if len(parts) > 2 else filename
-
-                    models.append(
-                        {
-                            "filename": filename,
-                            "model_name": model_name,
-                            "n": model_data.get("n", 3),
-                            "file_size": file_size,
-                            "vocabulary_size": len(model_data.get("word_freq", {})),
-                            "total_patterns": len(model_data.get("ngrams", {})),
-                        }
-                    )
-                except Exception as e:
-                    print(f"モデルファイル読み込みエラー {filename}: {e}")
-
-        models.sort(key=lambda x: x.get("filename", ""), reverse=True)
-
-        return {
-            "models": models,
-            "total_count": len(models),
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル一覧取得エラー: {str(e)}")
-
-
-@app.post("/api/fifth-force/load-model")
-async def load_fifth_force_model(model_name: str = Form(...)):
-    """第五の力（n-gram）モデルを読み込み"""
-    try:
-        model_dir = "app/data/fifth_force_models"
-        model_file = None
-
-        for filename in os.listdir(model_dir):
-            if filename.startswith(model_name) and filename.endswith(".json"):
-                model_file = os.path.join(model_dir, filename)
-                break
-
-        if not model_file or not os.path.exists(model_file):
-            raise HTTPException(
-                status_code=404, detail=f"モデル '{model_name}' が見つかりません"
-            )
-
-        fifth_force_learner.load_learning_data(model_file)
-        fifth_force_learner.save_learning_data(FIFTH_FORCE_DATA_PATH)
-
-        return {
-            "message": f"第五の力（n-gram）モデル '{model_name}' を読み込みました",
-            "model_name": model_name,
-            "learning_stats": fifth_force_learner.get_learning_stats(),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル読み込みエラー: {str(e)}")
-
-
-@app.delete("/api/fifth-force/delete-model")
-async def delete_fifth_force_model(model_name: str = Form(...)):
-    """第五の力（n-gram）モデルを削除"""
-    try:
-        model_dir = "app/data/fifth_force_models"
-        model_file = None
-
-        for filename in os.listdir(model_dir):
-            if filename.startswith(model_name) and filename.endswith(".json"):
-                model_file = os.path.join(model_dir, filename)
-                break
-
-        if not model_file or not os.path.exists(model_file):
-            raise HTTPException(
-                status_code=404, detail=f"モデル '{model_name}' が見つかりません"
-            )
-
-        os.remove(model_file)
-
-        return {
-            "message": f"第五の力（n-gram）モデル '{model_name}' を削除しました",
-            "deleted_file": os.path.basename(model_file),
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"モデル削除エラー: {str(e)}")
-
-
-# ============================================
 # 第六勢力（AI + 参考お題）APIエンドポイント
 # ============================================
 
 
 def _get_ai_config():
-    """AI API設定を取得"""
+    """AI API設定を取得（フォールバック付き）"""
     s = get_settings()
     provider = s.ai_provider or "gemini"
     api_key = s.gemini_api_key if provider == "gemini" else s.openai_api_key
-    return api_key, provider
+
+    if provider == "gemini" and s.openai_api_key:
+        fallback_key = s.openai_api_key
+        fallback_provider = "openai"
+    elif provider == "openai" and s.gemini_api_key:
+        fallback_key = s.gemini_api_key
+        fallback_provider = "gemini"
+    else:
+        fallback_key = ""
+        fallback_provider = ""
+
+    return api_key, provider, fallback_key, fallback_provider
 
 
 @app.post("/api/sixth-force/learn")
@@ -1438,10 +1098,11 @@ async def generate_sixth_force_odai(
                 "generated_odais": [],
             }
 
-        api_key, provider = _get_ai_config()
+        api_key, provider, fallback_key, fallback_provider = _get_ai_config()
 
         generated_odais = await ai_force_generator.generate_sixth_force(
-            words_to_use, count=count, api_key=api_key, provider=provider
+            words_to_use, count=count, api_key=api_key, provider=provider,
+            fallback_key=fallback_key, fallback_provider=fallback_provider
         )
 
         if not generated_odais:
@@ -1449,6 +1110,9 @@ async def generate_sixth_force_odai(
                 "error": "第六勢力: お題の生成に失敗しました。",
                 "generated_odais": [],
             }
+
+        for odai in generated_odais:
+            pattern_generator.learn_from_odai(odai["text"], source="sixth_force")
 
         return {
             "message": f"第六勢力: {len(generated_odais)}個のお題を生成しました",
@@ -1520,10 +1184,11 @@ async def generate_seventh_force_odai(
                 "generated_odais": [],
             }
 
-        api_key, provider = _get_ai_config()
+        api_key, provider, fallback_key, fallback_provider = _get_ai_config()
 
         generated_odais = await ai_force_generator.generate_seventh_force(
-            words_to_use, count=count, api_key=api_key, provider=provider
+            words_to_use, count=count, api_key=api_key, provider=provider,
+            fallback_key=fallback_key, fallback_provider=fallback_provider
         )
 
         if not generated_odais:
@@ -1531,6 +1196,9 @@ async def generate_seventh_force_odai(
                 "error": "第七勢力: お題の生成に失敗しました。",
                 "generated_odais": [],
             }
+
+        for odai in generated_odais:
+            pattern_generator.learn_from_odai(odai["text"], source="seventh_force")
 
         return {
             "message": f"第七勢力: {len(generated_odais)}個のお題を生成しました",
@@ -1547,6 +1215,194 @@ async def generate_seventh_force_odai(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"第七勢力生成エラー: {str(e)}")
+
+
+# ============================================
+# 第八勢力（突飛な設定 + 明確な導線）APIエンドポイント
+# ============================================
+
+
+@app.post("/api/eighth-force/generate")
+async def generate_eighth_force_odai(
+    count: int = Form(10),
+    use_words: bool = Form(True),
+    db: Session = Depends(get_db),
+):
+    """第八勢力でお題を生成（突飛な設定 + 明確な回答導線）"""
+    try:
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "第八勢力: 使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+            }
+
+        api_key, provider, fallback_key, fallback_provider = _get_ai_config()
+
+        generated_odais = await ai_force_generator.generate_eighth_force(
+            words_to_use, count=count, api_key=api_key, provider=provider,
+            fallback_key=fallback_key, fallback_provider=fallback_provider
+        )
+
+        if not generated_odais:
+            return {
+                "error": "第八勢力: お題の生成に失敗しました。",
+                "generated_odais": [],
+            }
+
+        for odai in generated_odais:
+            pattern_generator.learn_from_odai(odai["text"], source="eighth_force")
+
+        return {
+            "message": f"第八勢力: {len(generated_odais)}個のお題を生成しました",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": odai.get("source", "eighth_force_ai"),
+                    "method": odai.get("method", "ai_creative_guided"),
+                    "quality_score": odai.get("quality_score", 0.5),
+                }
+                for odai in generated_odais
+            ],
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"第八勢力生成エラー: {str(e)}")
+
+
+# ============================================
+# パターン学習型ローカル生成 APIエンドポイント
+# ============================================
+
+
+@app.post("/api/pattern-local/generate")
+async def generate_pattern_local_odai(
+    count: int = Form(10),
+    use_words: bool = Form(True),
+    db: Session = Depends(get_db),
+):
+    """パターン学習型ローカル生成（AI不要）"""
+    try:
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+            }
+
+        stats = pattern_generator.get_stats()
+        if stats["pattern_count"] == 0:
+            return {
+                "error": "学習済みパターンがありません。先にAI生成を実行してパターンを学習してください。",
+                "generated_odais": [],
+            }
+
+        generated_odais = pattern_generator.generate(words_to_use, count=count)
+
+        if not generated_odais:
+            return {
+                "error": "お題の生成に失敗しました。パターン数が不足している可能性があります。",
+                "generated_odais": [],
+            }
+
+        return {
+            "message": f"パターン学習型: {len(generated_odais)}個のお題を生成しました（{stats['pattern_count']}パターンから）",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": "pattern_local",
+                    "method": "pattern_based",
+                    "quality_score": odai.get("quality_score", 0.7),
+                }
+                for odai in generated_odais
+            ],
+            "stats": stats,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"パターン生成エラー: {str(e)}")
+
+
+@app.get("/api/pattern-local/stats")
+async def get_pattern_local_stats():
+    """パターン学習型の統計を取得"""
+    try:
+        return {"stats": pattern_generator.get_stats()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"統計取得エラー: {str(e)}")
+
+
+@app.post("/api/pattern-local/reset")
+async def reset_pattern_local():
+    """学習済みパターンをリセット"""
+    try:
+        pattern_generator.reset()
+        return {
+            "message": "学習済みパターンをリセットしました",
+            "stats": pattern_generator.get_stats(),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"リセットエラー: {str(e)}")
+
+
+@app.post("/api/strict-words/generate")
+async def generate_strict_words_odai(
+    count: int = Form(10),
+    use_words: bool = Form(True),
+    db: Session = Depends(get_db),
+):
+    """登録単語のみ厳密使用でお題を生成"""
+    try:
+        words_to_use = []
+        if use_words:
+            words = db.query(DisplayWord).all()
+            words_to_use = [word.word for word in words if word.word]
+
+        if not words_to_use:
+            return {
+                "error": "使用する単語がありません。まず単語を登録してください。",
+                "generated_odais": [],
+            }
+
+        api_key, provider, fallback_key, fallback_provider = _get_ai_config()
+
+        generated_odais = await ai_force_generator.generate_strict_words_only(
+            words_to_use, count=count, api_key=api_key, provider=provider,
+            fallback_key=fallback_key, fallback_provider=fallback_provider
+        )
+
+        if not generated_odais:
+            return {
+                "error": "お題の生成に失敗しました。",
+                "generated_odais": [],
+            }
+
+        for odai in generated_odais:
+            pattern_generator.learn_from_odai(odai["text"], source="strict_words")
+
+        return {
+            "message": f"登録単語のみ厳密使用: {len(generated_odais)}個のお題を生成しました",
+            "generated_odais": [
+                {
+                    "text": odai["text"],
+                    "source": odai.get("source", "strict_words_only"),
+                    "method": odai.get("method", "ai_strict_words"),
+                    "quality_score": odai.get("quality_score", 0.5),
+                }
+                for odai in generated_odais
+            ],
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"登録単語のみ生成エラー: {str(e)}")
 
 
 # ============================================

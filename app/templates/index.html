@@ -8,7 +8,7 @@
         <!-- Hero section -->
         <div class="bg-gradient-to-r from-primary-600 to-primary-700 text-white p-8 rounded-xl shadow-lg mb-8">
             <h1 class="text-4xl font-bold mb-4">🎭 大喜利お題ジェネレーター</h1>
-            <p class="text-xl mb-6 text-primary-100">ニュースから単語を抽出して、オリジナルの大喜利お題を自動生成します！</p>
+            <p class="text-xl mb-6 text-primary-100">AIを活用して、オリジナルの大喜利お題を自動生成します！</p>
             <a href="/topic" class="inline-flex items-center px-6 py-3 bg-white text-primary-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors shadow-md">
                 🎯 お題を見る
             </a>
@@ -50,20 +50,12 @@
             <div class="p-6">
                 <div class="grid grid-cols-2 gap-4">
                     <div class="text-center">
-                        <div class="text-3xl font-bold text-primary-600">{{ stats.news_count }}</div>
-                        <div class="text-sm text-gray-600">ニュース記事</div>
-                    </div>
-                    <div class="text-center">
                         <div class="text-3xl font-bold text-green-600">{{ stats.word_count }}</div>
-                        <div class="text-sm text-gray-600">抽出単語</div>
+                        <div class="text-sm text-gray-600">登録単語</div>
                     </div>
                     <div class="text-center">
                         <div class="text-3xl font-bold text-yellow-600">{{ stats.topic_count }}</div>
-                        <div class="text-sm text-gray-600">お題数</div>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-3xl font-bold text-blue-600">{{ stats.training_count }}</div>
-                        <div class="text-sm text-gray-600">学習データ</div>
+                        <div class="text-sm text-gray-600">確定お題</div>
                     </div>
                 </div>
             </div>
@@ -75,14 +67,9 @@
                 <h2 class="text-xl font-semibold text-gray-900">🔧 開発者向け</h2>
             </div>
             <div class="p-6">
-                <div class="space-y-3">
-                    <a href="/docs" target="_blank" class="w-full inline-flex items-center justify-center px-4 py-2 border border-primary-300 text-primary-700 bg-white rounded-lg hover:bg-primary-50 transition-colors">
-                        📖 API仕様
-                    </a>
-                    <button onclick="initSampleData()" class="w-full inline-flex items-center justify-center px-4 py-2 border border-green-300 text-green-700 bg-white rounded-lg hover:bg-green-50 transition-colors">
-                        🎲 サンプルデータ投入
-                    </button>
-                </div>
+                <a href="/docs" target="_blank" class="w-full inline-flex items-center justify-center px-4 py-2 border border-primary-300 text-primary-700 bg-white rounded-lg hover:bg-primary-50 transition-colors">
+                    📖 API仕様
+                </a>
             </div>
         </div>
     </div>

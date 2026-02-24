@@ -1,6 +1,6 @@
 import os
 from functools import lru_cache
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "大喜利お題ジェネレーター"
@@ -12,8 +12,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     ai_provider: str = "gemini"  # "gemini" or "openai"
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
 
 @lru_cache()
 def get_settings():
